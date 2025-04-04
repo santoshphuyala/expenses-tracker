@@ -133,6 +133,12 @@
                         <input type="date" class="form-control" id="date" required data-bs-toggle="tooltip" title="Select transaction date">
                     </div>
                     <div class="col-md-6 mb-3">
+                        <select class="form-select" id="category" required data-bs-toggle="tooltip" title="Select or add category">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" class="form-control mt-2 d-none" id="newCategory" placeholder="Enter new category" data-bs-toggle="tooltip" title="Enter new category name">
+                    </div>
+                    <div class="col-md-6 mb-3">
                         <select class="form-select" id="currency" required data-bs-toggle="tooltip" title="Select or add currency">
                             <option value="USD">USD ($)</option>
                             <option value="EUR">EUR (€)</option>
@@ -189,6 +195,11 @@
                             <input type="date" class="form-control" id="editDate" required data-bs-toggle="tooltip" title="Edit transaction date">
                         </div>
                         <div class="mb-3">
+                            <select class="form-select" id="editCategory" required data-bs-toggle="tooltip" title="Edit category">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <select class="form-select" id="editCurrency" required data-bs-toggle="tooltip" title="Edit currency">
                                 <option value="USD">USD ($)</option>
                                 <option value="EUR">EUR (€)</option>
@@ -208,13 +219,14 @@
     <script>
         const { jsPDF } = window.jspdf;
         class Transaction {
-            constructor(id, description, amount, type, date, currency) {
+            constructor(id, description, amount, type, date, currency, category) {
                 this.id = id;
                 this.description = description;
                 this.amount = parseFloat(amount);
                 this.type = type;
                 this.date = date;
                 this.currency = currency;
+                this.category = category;
             }
         }
 
@@ -222,32 +234,35 @@
             constructor() {
                 this.transactions = JSON.parse(localStorage.getItem('transactions')) || [];
                 this.currencies = JSON.parse(localStorage.getItem('currencies')) || ['USD', 'EUR'];
+                this.incomeCategories = JSON.parse(localStorage.getItem('incomeCategories')) || ['Salary', 'Freelance', 'Investment', 'Other'];
+                this.expenseCategories = JSON.parse(localStorage.getItem('expenseCategories')) || ['Food', 'Rent', 'Utilities', 'Entertainment', 'Other'];
                 this.openingBankBalance = parseFloat(localStorage.getItem('openingBankBalance')) || 0;
                 this.openingCashBalance = parseFloat(localStorage.getItem('openingCashBalance')) || 0;
                 this.updateUI();
                 this.updateCurrencyOptions();
+                this.updateCategoryOptions();
             }
 
-            addTransaction(description, amount, type, date, currency) {
-                if (!description || amount <= 0 || !type || !date || !currency) {
+            addTransaction(description, amount, type, date, currency, category) {
+                if (!description || amount <= 0 || !type || !date || !currency || !category) {
                     alert('Please fill all fields correctly');
                     return;
                 }
                 const id = Date.now();
-                const transaction = new Transaction(id, description, amount, type, date, currency);
+                const transaction = new Transaction(id, description, amount, type, date, currency, category);
                 this.transactions.push(transaction);
                 this.saveTransactions();
                 this.updateUI();
             }
 
-            editTransaction(id, description, amount, type, date, currency) {
-                if (!description || amount <= 0 || !type || !date || !currency) {
+            editTransaction(id, description, amount, type, date, currency, category) {
+                if (!description || amount <= 0 || !type || !date || !currency || !category) {
                     alert('Please fill all fields correctly');
                     return;
                 }
                 const index = this.transactions.findIndex(t => t.id === id);
                 if (index !== -1) {
-                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency);
+                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency, category);
                     this.saveTransactions();
                     this.updateUI();
                 }
@@ -264,6 +279,17 @@
                     this.currencies.push(currency);
                     localStorage.setItem('currencies', JSON.stringify(this.currencies));
                     this.updateCurrencyOptions();
+                }
+            }
+
+            addCategory(type, category) {
+                if (category) {
+                    const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
+                    if (!categories.includes(category)) {
+                        categories.push(category);
+                        localStorage.setItem(type === 'income' ? 'incomeCategories' : 'expenseCategories', JSON.stringify(categories));
+                        this.updateCategoryOptions();
+                    }
                 }
             }
 
@@ -306,7 +332,7 @@
                     li.innerHTML = `
                         <div>
                             <strong>${t.description}</strong>
-                            <small class="d-block text-muted">${t.date} - ${t.currency}</small>
+                            <small class="d-block text-muted">${t.date} - ${t.category} (${t.currency})</small>
                         </div>
                         <div>
                             <span class="me-3">${t.amount.toFixed(2)} ${t.currency}</span>
@@ -336,10 +362,31 @@
                 currencySelect.appendChild(addNewOption);
             }
 
+            updateCategoryOptions() {
+                const type = document.getElementById('type').value;
+                const categorySelect = document.getElementById('category');
+                const editCategorySelect = document.getElementById('editCategory');
+                const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
+
+                categorySelect.innerHTML = '';
+                editCategorySelect.innerHTML = '';
+                categories.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c;
+                    option.textContent = c;
+                    categorySelect.appendChild(option.cloneNode(true));
+                    editCategorySelect.appendChild(option);
+                });
+                const addNewOption = document.createElement('option');
+                addNewOption.value = 'add-new';
+                addNewOption.textContent = 'Add New Category';
+                categorySelect.appendChild(addNewOption);
+            }
+
             exportToCSV() {
-                const csv = ['Date,Description,Amount,Type,Currency'];
+                const csv = ['Date,Description,Amount,Type,Currency,Category'];
                 this.transactions.forEach(t => {
-                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency}`);
+                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency},${t.category}`);
                 });
                 const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
@@ -354,9 +401,9 @@
                 reader.onload = (e) => {
                     const lines = e.target.result.split('\n').slice(1); // Skip header
                     lines.forEach(line => {
-                        const [date, description, amount, type, currency] = line.split(',');
-                        if (description && amount && type && currency) {
-                            this.addTransaction(description, parseFloat(amount), type, date, currency);
+                        const [date, description, amount, type, currency, category] = line.split(',');
+                        if (description && amount && type && currency && category) {
+                            this.addTransaction(description, parseFloat(amount), type, date, currency, category);
                         }
                     });
                 };
@@ -375,7 +422,7 @@
                 doc.text('Expense Tracker Report', 10, 10);
                 let y = 20;
                 this.transactions.forEach(t => {
-                    doc.text(`${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type})`, 10, y);
+                    doc.text(`${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category})`, 10, y);
                     y += 10;
                 });
                 doc.save('transactions.pdf');
@@ -394,7 +441,7 @@
                         <p>Transaction Balance: $${this.calculateTotals().transactionBalance.toFixed(2)}</p>
                         <h2>Transactions</h2>
                         <ul>
-                            ${this.transactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type})</li>`).join('')}
+                            ${this.transactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category})</li>`).join('')}
                         </ul>
                     </body>
                     </html>
@@ -421,6 +468,7 @@
             const type = document.getElementById('type').value;
             const date = document.getElementById('date').value;
             let currency = document.getElementById('currency').value;
+            let category = document.getElementById('category').value;
 
             if (currency === 'add-new') {
                 const newCurrency = document.getElementById('newCurrency').value.trim();
@@ -428,21 +476,44 @@
                     tracker.addCurrency(newCurrency);
                     currency = newCurrency;
                     document.getElementById('newCurrency').classList.add('d-none');
-                    document.getElementById('currency').value = newCurrency; // Set the new currency as selected
+                    document.getElementById('currency').value = newCurrency;
                 } else {
                     alert('Please enter a new currency');
                     return;
                 }
             }
-            tracker.addTransaction(description, amount, type, date, currency);
+
+            if (category === 'add-new') {
+                const newCategory = document.getElementById('newCategory').value.trim();
+                if (newCategory) {
+                    tracker.addCategory(type, newCategory);
+                    category = newCategory;
+                    document.getElementById('newCategory').classList.add('d-none');
+                    document.getElementById('category').value = newCategory;
+                } else {
+                    alert('Please enter a new category');
+                    return;
+                }
+            }
+
+            tracker.addTransaction(description, amount, type, date, currency, category);
             e.target.reset();
-            document.getElementById('date').value = new Date().toISOString().split('T')[0]; // Reset date to today
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
         });
 
         // Currency Selection
         document.getElementById('currency').addEventListener('change', (e) => {
             const newCurrencyInput = document.getElementById('newCurrency');
             newCurrencyInput.classList.toggle('d-none', e.target.value !== 'add-new');
+        });
+
+        // Category Selection
+        document.getElementById('type').addEventListener('change', () => {
+            tracker.updateCategoryOptions();
+        });
+        document.getElementById('category').addEventListener('change', (e) => {
+            const newCategoryInput = document.getElementById('newCategory');
+            newCategoryInput.classList.toggle('d-none', e.target.value !== 'add-new');
         });
 
         // Save Opening Balances
@@ -465,6 +536,8 @@
                 document.getElementById('editType').value = transaction.type;
                 document.getElementById('editDate').value = transaction.date;
                 document.getElementById('editCurrency').value = transaction.currency;
+                document.getElementById('editCategory').value = transaction.category;
+                tracker.updateCategoryOptions(); // Update categories based on type
                 editModal.show();
             }
         });
@@ -477,7 +550,8 @@
             const type = document.getElementById('editType').value;
             const date = document.getElementById('editDate').value;
             const currency = document.getElementById('editCurrency').value;
-            tracker.editTransaction(id, description, amount, type, date, currency);
+            const category = document.getElementById('editCategory').value;
+            tracker.editTransaction(id, description, amount, type, date, currency, category);
             editModal.hide();
         });
 
