@@ -18,10 +18,7 @@
             color: #fff;
         }
         .dark-mode .card, .dark-mode .balance-card { background: #1a202c; }
-        .container {
-            max-width: 1200px;
-            padding: 20px;
-        }
+        .container { max-width: 1200px; padding: 20px; }
         .card {
             border: none;
             border-radius: 20px;
@@ -32,10 +29,7 @@
             transform: translateY(-10px);
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
-        .transaction-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
+        .transaction-list { max-height: 400px; overflow-y: auto; }
         .income {
             border-left: 6px solid #28a745;
             background: linear-gradient(90deg, rgba(40, 167, 69, 0.1), rgba(255, 255, 255, 0));
@@ -65,15 +59,8 @@
             from { transform: translateX(-20px); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .tooltip-inner {
-            background-color: #007bff;
-            color: white;
-            border-radius: 10px;
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .tooltip-inner { background-color: #007bff; color: white; border-radius: 10px; }
         .pending { background: rgba(255, 193, 7, 0.1); }
         .canceled { background: rgba(108, 117, 125, 0.1); }
     </style>
@@ -96,37 +83,32 @@
         <!-- Balance Display -->
         <div class="balance-card">
             <div class="row text-center">
-                <div class="col-md-3">
-                    <h6>Total Balance</h6>
-                    <h3 id="totalBalance" class="fw-bold text-primary">0.00</h3>
-                </div>
-                <div class="col-md-3">
-                    <h6>Bank Balance</h6>
-                    <h4 id="bankBalance" class="text-info">0.00</h4>
-                </div>
-                <div class="col-md-3">
-                    <h6>Cash Balance</h6>
-                    <h4 id="cashBalance" class="text-warning">0.00</h4>
-                </div>
-                <div class="col-md-3">
-                    <h6>Transaction Balance</h6>
-                    <h4 id="transactionBalance" class="text-secondary">0.00</h4>
-                </div>
+                <div class="col-md-3"><h6>Total Balance</h6><h3 id="totalBalance" class="fw-bold text-primary">0.00</h3></div>
+                <div class="col-md-3"><h6>Bank Balance</h6><h4 id="bankBalance" class="text-info">0.00</h4></div>
+                <div class="col-md-3"><h6>Cash Balance</h6><h4 id="cashBalance" class="text-warning">0.00</h4></div>
+                <div class="col-md-3"><h6>Transaction Balance</h6><h4 id="transactionBalance" class="text-secondary">0.00</h4></div>
             </div>
         </div>
 
-        <!-- Set Opening Balances -->
-        <div class="card p-4 mt-4">
-            <h5 class="mb-3">Set Opening Balances</h5>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <input type="number" class="form-control" id="openingBankBalance" placeholder="Opening Bank Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial bank balance">
+        <!-- Opening Balances -->
+        <div class="card p-4 mt-4" id="openingBalanceSection">
+            <h5 class="mb-3">Opening Balances</h5>
+            <div id="balanceDisplay" class="mb-3"></div>
+            <div id="balanceForm" class="d-none">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="openingBankBalance" placeholder="Opening Bank Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial bank balance">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="openingCashBalance" placeholder="Opening Cash Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial cash balance">
+                    </div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <input type="number" class="form-control" id="openingCashBalance" placeholder="Opening Cash Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial cash balance">
-                </div>
+                <button class="btn btn-success btn-custom w-100" id="saveOpeningBalances">Save Opening Balances</button>
             </div>
-            <button class="btn btn-success btn-custom w-100" id="saveOpeningBalances">Save Opening Balances</button>
+            <div id="balanceActions">
+                <button class="btn btn-outline-primary btn-custom me-2" id="editOpeningBalances">Edit</button>
+                <button class="btn btn-outline-danger btn-custom" id="deleteOpeningBalances">Delete</button>
+            </div>
         </div>
 
         <!-- Add Transaction Form -->
@@ -135,25 +117,25 @@
             <form id="transactionForm">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <input type="text" class="form-control" id="description" placeholder="Description" required data-bs-toggle="tooltip" title="Enter transaction description">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <input type="number" class="form-control" id="amount" placeholder="Amount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Enter amount (positive only)">
-                    </div>
-                    <div class="col-md-6 mb-3">
                         <select class="form-select" id="type" required data-bs-toggle="tooltip" title="Select transaction type">
                             <option value="income">Income</option>
                             <option value="expense">Expense</option>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <input type="date" class="form-control" id="date" required data-bs-toggle="tooltip" title="Select transaction date">
-                    </div>
-                    <div class="col-md-6 mb-3">
                         <select class="form-select" id="category" required data-bs-toggle="tooltip" title="Select or add category">
                             <!-- Populated dynamically -->
                         </select>
                         <input type="text" class="form-control mt-2 d-none" id="newCategory" placeholder="Enter new category" data-bs-toggle="tooltip" title="Enter new category name">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="text" class="form-control" id="description" placeholder="Description" required data-bs-toggle="tooltip" title="Enter transaction description">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="amount" placeholder="Amount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Enter amount (positive only)">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="date" class="form-control" id="date" required data-bs-toggle="tooltip" title="Select transaction date">
                     </div>
                     <div class="col-md-6 mb-3">
                         <select class="form-select" id="currency" required data-bs-toggle="tooltip" title="Select or add currency">
@@ -184,12 +166,12 @@
 
         <!-- Budget Settings -->
         <div class="card p-4 mt-4">
-            <h5 class="mb-3">Set Budgets</h5>
+            <h5 class="mb-3">Set Budgets (Optional)</h5>
             <div id="budgetSettings"></div>
             <button class="btn btn-primary btn-custom w-100" id="saveBudgets">Save Budgets</button>
         </div>
 
-        <!-- Summary and Filters -->
+        <!-- Summary -->
         <div class="card p-4 mt-4">
             <h5 class="mb-3">Summary</h5>
             <div class="d-flex mb-3">
@@ -236,24 +218,24 @@
                     <form id="editForm">
                         <input type="hidden" id="editId">
                         <div class="mb-3">
-                            <input type="text" class="form-control" id="editDescription" required data-bs-toggle="tooltip" title="Edit transaction description">
-                        </div>
-                        <div class="mb-3">
-                            <input type="number" class="form-control" id="editAmount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Edit amount">
-                        </div>
-                        <div class="mb-3">
                             <select class="form-select" id="editType" required data-bs-toggle="tooltip" title="Edit transaction type">
                                 <option value="income">Income</option>
                                 <option value="expense">Expense</option>
                             </select>
                         </div>
                         <div class="mb-3">
-                            <input type="date" class="form-control" id="editDate" required data-bs-toggle="tooltip" title="Edit transaction date">
-                        </div>
-                        <div class="mb-3">
                             <select class="form-select" id="editCategory" required data-bs-toggle="tooltip" title="Edit category">
                                 <!-- Populated dynamically -->
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="editDescription" required data-bs-toggle="tooltip" title="Edit transaction description">
+                        </div>
+                        <div class="mb-3">
+                            <input type="number" class="form-control" id="editAmount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Edit amount">
+                        </div>
+                        <div class="mb-3">
+                            <input type="date" class="form-control" id="editDate" required data-bs-toggle="tooltip" title="Edit transaction date">
                         </div>
                         <div class="mb-3">
                             <select class="form-select" id="editCurrency" required data-bs-toggle="tooltip" title="Edit currency">
@@ -288,6 +270,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const { jsPDF } = window.jspdf;
+
         class Transaction {
             constructor(id, description, amount, type, date, currency, category, notes = '', tags = [], status = 'cleared') {
                 this.id = id;
@@ -320,6 +303,7 @@
                 this.updateCategoryOptions();
                 this.updateBudgetSettings();
                 this.updateSummary();
+                this.updateOpeningBalanceDisplay();
             }
 
             simulateData() {
@@ -379,7 +363,7 @@
             addCurrency(currency) {
                 if (currency && !this.currencies.includes(currency)) {
                     this.currencies.push(currency);
-                    this.currencySymbols[currency] = currency; // Default to code if no symbol
+                    this.currencySymbols[currency] = currency;
                     localStorage.setItem('currencies', JSON.stringify(this.currencies));
                     this.updateCurrencyOptions();
                 }
@@ -408,6 +392,16 @@
                 localStorage.setItem('openingBankBalance', this.openingBankBalance);
                 localStorage.setItem('openingCashBalance', this.openingCashBalance);
                 this.updateUI();
+                this.updateOpeningBalanceDisplay();
+            }
+
+            deleteOpeningBalances() {
+                this.openingBankBalance = 0;
+                this.openingCashBalance = 0;
+                localStorage.removeItem('openingBankBalance');
+                localStorage.removeItem('openingCashBalance');
+                this.updateUI();
+                this.updateOpeningBalanceDisplay();
             }
 
             setBudgets(budgets) {
@@ -475,21 +469,21 @@
                 const currencySelect = document.getElementById('currency');
                 const editCurrencySelect = document.getElementById('editCurrency');
                 const defaultCurrencySelect = document.getElementById('defaultCurrency');
-                currencySelect.innerHTML = '';
-                editCurrencySelect.innerHTML = '';
-                defaultCurrencySelect.innerHTML = '';
-                this.currencies.forEach(c => {
-                    const option = document.createElement('option');
-                    option.value = c;
-                    option.textContent = `${c} (${this.currencySymbols[c] || c})`;
-                    currencySelect.appendChild(option.cloneNode(true));
-                    editCurrencySelect.appendChild(option.cloneNode(true));
-                    defaultCurrencySelect.appendChild(option.cloneNode(true));
+                [currencySelect, editCurrencySelect, defaultCurrencySelect].forEach(select => {
+                    select.innerHTML = '';
+                    this.currencies.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c;
+                        option.textContent = `${c} (${this.currencySymbols[c] || c})`;
+                        select.appendChild(option.cloneNode(true));
+                    });
+                    if (select === currencySelect) {
+                        const addNewOption = document.createElement('option');
+                        addNewOption.value = 'add-new';
+                        addNewOption.textContent = 'Add New Currency';
+                        select.appendChild(addNewOption);
+                    }
                 });
-                const addNewOption = document.createElement('option');
-                addNewOption.value = 'add-new';
-                addNewOption.textContent = 'Add New Currency';
-                currencySelect.appendChild(addNewOption);
                 defaultCurrencySelect.value = this.defaultCurrency;
             }
 
@@ -500,21 +494,31 @@
                 const categoryFilter = document.getElementById('categoryFilter');
                 const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
 
-                categorySelect.innerHTML = '';
-                editCategorySelect.innerHTML = '';
-                categoryFilter.innerHTML = '<option value="">All Categories</option>';
-                categories.forEach(c => {
-                    const option = document.createElement('option');
-                    option.value = c;
-                    option.textContent = c;
-                    categorySelect.appendChild(option.cloneNode(true));
-                    editCategorySelect.appendChild(option.cloneNode(true));
-                    categoryFilter.appendChild(option.cloneNode(true));
+                [categorySelect, editCategorySelect].forEach(select => {
+                    select.innerHTML = '';
+                    categories.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c;
+                        option.textContent = c;
+                        select.appendChild(option);
+                    });
+                    if (select === categorySelect) {
+                        const addNewOption = document.createElement('option');
+                        addNewOption.value = 'add-new';
+                        addNewOption.textContent = 'Add New Category';
+                        select.appendChild(addNewOption);
+                    }
                 });
-                const addNewOption = document.createElement('option');
-                addNewOption.value = 'add-new';
-                addNewOption.textContent = 'Add New Category';
-                categorySelect.appendChild(addNewOption);
+
+                categoryFilter.innerHTML = '<option value="">All Categories</option>';
+                [...this.incomeCategories, ...this.expenseCategories].forEach(c => {
+                    if (!categoryFilter.querySelector(`option[value="${c}"]`)) {
+                        const option = document.createElement('option');
+                        option.value = c;
+                        option.textContent = c;
+                        categoryFilter.appendChild(option);
+                    }
+                });
             }
 
             updateBudgetSettings() {
@@ -540,6 +544,26 @@
                         alert(`Budget exceeded for ${category}: ${spent}/${this.budgets[category]} ${this.defaultCurrency}`);
                     }
                 });
+            }
+
+            updateOpeningBalanceDisplay() {
+                const display = document.getElementById('balanceDisplay');
+                const form = document.getElementById('balanceForm');
+                const actions = document.getElementById('balanceActions');
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+
+                if (this.openingBankBalance || this.openingCashBalance) {
+                    display.innerHTML = `
+                        <p>Bank: ${this.openingBankBalance.toFixed(2)} ${symbol} | Cash: ${this.openingCashBalance.toFixed(2)} ${symbol}</p>
+                    `;
+                    display.classList.remove('d-none');
+                    form.classList.add('d-none');
+                    actions.classList.remove('d-none');
+                } else {
+                    display.classList.add('d-none');
+                    form.classList.remove('d-none');
+                    actions.classList.add('d-none');
+                }
             }
 
             updateSummary() {
@@ -589,7 +613,7 @@
 
             importFromCSV(file) {
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = e => {
                     const lines = e.target.result.split('\n').slice(1);
                     lines.forEach(line => {
                         const [date, description, amount, type, currency, category, notes, tags, status] = line.split(',');
@@ -670,15 +694,11 @@
         const tracker = new ExpenseTracker();
         const editModal = new bootstrap.Modal(document.getElementById('editModal'));
 
-        // Initialize Tooltips
         document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
-
-        // Set Default Date to Today
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
         document.getElementById('summaryDate').value = new Date().toISOString().split('T')[0];
 
-        // Add Transaction
-        document.getElementById('transactionForm').addEventListener('submit', (e) => {
+        document.getElementById('transactionForm').addEventListener('submit', e => {
             e.preventDefault();
             const description = document.getElementById('description').value;
             const amount = parseFloat(document.getElementById('amount').value);
@@ -721,35 +741,44 @@
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
         });
 
-        // Currency and Category Selection
-        document.getElementById('currency').addEventListener('change', (e) => {
+        document.getElementById('currency').addEventListener('change', e => {
             document.getElementById('newCurrency').classList.toggle('d-none', e.target.value !== 'add-new');
         });
         document.getElementById('type').addEventListener('change', () => tracker.updateCategoryOptions());
-        document.getElementById('category').addEventListener('change', (e) => {
+        document.getElementById('category').addEventListener('change', e => {
             document.getElementById('newCategory').classList.toggle('d-none', e.target.value !== 'add-new');
         });
 
-        // Default Currency
-        document.getElementById('defaultCurrency').addEventListener('change', (e) => {
+        document.getElementById('defaultCurrency').addEventListener('change', e => {
             tracker.setDefaultCurrency(e.target.value);
         });
 
-        // Dark Mode
         document.getElementById('darkModeToggle').addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
         });
         if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
 
-        // Save Opening Balances
         document.getElementById('saveOpeningBalances').addEventListener('click', () => {
             const bankBalance = document.getElementById('openingBankBalance').value;
             const cashBalance = document.getElementById('openingCashBalance').value;
             tracker.setOpeningBalances(bankBalance, cashBalance);
         });
 
-        // Save Budgets
+        document.getElementById('editOpeningBalances').addEventListener('click', () => {
+            document.getElementById('balanceDisplay').classList.add('d-none');
+            document.getElementById('balanceForm').classList.remove('d-none');
+            document.getElementById('balanceActions').classList.add('d-none');
+            document.getElementById('openingBankBalance').value = tracker.openingBankBalance;
+            document.getElementById('openingCashBalance').value = tracker.openingCashBalance;
+        });
+
+        document.getElementById('deleteOpeningBalances').addEventListener('click', () => {
+            if (confirm('Are you sure you want to delete opening balances?')) {
+                tracker.deleteOpeningBalances();
+            }
+        });
+
         document.getElementById('saveBudgets').addEventListener('click', () => {
             const budgets = {};
             tracker.expenseCategories.forEach(category => {
@@ -759,16 +788,12 @@
             tracker.setBudgets(budgets);
         });
 
-        // Search and Filter
         document.getElementById('search').addEventListener('input', () => tracker.updateUI());
         document.getElementById('categoryFilter').addEventListener('change', () => tracker.updateUI());
-
-        // Summary
         document.getElementById('summaryPeriod').addEventListener('change', () => tracker.updateSummary());
         document.getElementById('summaryDate').addEventListener('change', () => tracker.updateSummary());
 
-        // Transaction List Events
-        document.getElementById('transactionList').addEventListener('click', (e) => {
+        document.getElementById('transactionList').addEventListener('click', e => {
             const id = parseInt(e.target.dataset.id);
             if (e.target.classList.contains('delete-btn')) {
                 tracker.deleteTransaction(id);
@@ -791,7 +816,6 @@
             }
         });
 
-        // Save Edit
         document.getElementById('saveEdit').addEventListener('click', () => {
             const id = parseInt(document.getElementById('editId').value);
             const description = document.getElementById('editDescription').value;
@@ -807,10 +831,9 @@
             editModal.hide();
         });
 
-        // Export/Import/Save/Print Buttons
         document.getElementById('exportCSV').addEventListener('click', () => tracker.exportToCSV());
         document.getElementById('importCSV').addEventListener('click', () => document.getElementById('importCSVInput').click());
-        document.getElementById('importCSVInput').addEventListener('change', (e) => tracker.importFromCSV(e.target.files[0]));
+        document.getElementById('importCSVInput').addEventListener('change', e => tracker.importFromCSV(e.target.files[0]));
         document.getElementById('saveExcel').addEventListener('click', () => tracker.saveToExcel());
         document.getElementById('savePDF').addEventListener('click', () => tracker.saveToPDF());
         document.getElementById('printReport').addEventListener('click', () => tracker.printReport());
