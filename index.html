@@ -13,8 +13,13 @@
             min-height: 100vh;
             font-family: 'Segoe UI', sans-serif;
         }
+        .dark-mode {
+            background: linear-gradient(135deg, #2c3e50 0%, #4a5568 100%);
+            color: #fff;
+        }
+        .dark-mode .card, .dark-mode .balance-card { background: #1a202c; }
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             padding: 20px;
         }
         .card {
@@ -69,11 +74,23 @@
             color: white;
             border-radius: 10px;
         }
+        .pending { background: rgba(255, 193, 7, 0.1); }
+        .canceled { background: rgba(108, 117, 125, 0.1); }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center my-4 fw-bold">Expense Tracker</h1>
+        <div class="d-flex justify-content-between align-items-center my-4">
+            <h1 class="fw-bold">Expense Tracker</h1>
+            <div>
+                <select class="form-select d-inline-block w-auto me-2" id="defaultCurrency" data-bs-toggle="tooltip" title="Set default currency">
+                    <option value="NRs">NRs (₨)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="GBP">GBP (£)</option>
+                </select>
+                <button class="btn btn-outline-dark btn-custom" id="darkModeToggle">Dark Mode</button>
+            </div>
+        </div>
         <p class="text-center text-muted mb-4">Designed by Santosh Phuyal</p>
 
         <!-- Balance Display -->
@@ -81,19 +98,19 @@
             <div class="row text-center">
                 <div class="col-md-3">
                     <h6>Total Balance</h6>
-                    <h3 id="totalBalance" class="fw-bold text-primary">$0.00</h3>
+                    <h3 id="totalBalance" class="fw-bold text-primary">0.00</h3>
                 </div>
                 <div class="col-md-3">
                     <h6>Bank Balance</h6>
-                    <h4 id="bankBalance" class="text-info">$0.00</h4>
+                    <h4 id="bankBalance" class="text-info">0.00</h4>
                 </div>
                 <div class="col-md-3">
                     <h6>Cash Balance</h6>
-                    <h4 id="cashBalance" class="text-warning">$0.00</h4>
+                    <h4 id="cashBalance" class="text-warning">0.00</h4>
                 </div>
                 <div class="col-md-3">
                     <h6>Transaction Balance</h6>
-                    <h4 id="transactionBalance" class="text-secondary">$0.00</h4>
+                    <h4 id="transactionBalance" class="text-secondary">0.00</h4>
                 </div>
             </div>
         </div>
@@ -140,15 +157,50 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <select class="form-select" id="currency" required data-bs-toggle="tooltip" title="Select or add currency">
+                            <option value="NRs">NRs (₨)</option>
                             <option value="USD">USD ($)</option>
-                            <option value="EUR">EUR (€)</option>
+                            <option value="GBP">GBP (£)</option>
                             <option value="add-new">Add New Currency</option>
                         </select>
-                        <input type="text" class="form-control mt-2 d-none" id="newCurrency" placeholder="Enter new currency (e.g., GBP)" data-bs-toggle="tooltip" title="Enter currency code">
+                        <input type="text" class="form-control mt-2 d-none" id="newCurrency" placeholder="Enter new currency (e.g., INR)" data-bs-toggle="tooltip" title="Enter currency code">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <textarea class="form-control" id="notes" placeholder="Optional notes" data-bs-toggle="tooltip" title="Add notes for this transaction"></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="text" class="form-control" id="tags" placeholder="Tags (comma-separated)" data-bs-toggle="tooltip" title="Add tags (e.g., Urgent, Work)">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="status" data-bs-toggle="tooltip" title="Select transaction status">
+                            <option value="cleared">Cleared</option>
+                            <option value="pending">Pending</option>
+                            <option value="canceled">Canceled</option>
+                        </select>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-custom w-100">Add Transaction</button>
             </form>
+        </div>
+
+        <!-- Budget Settings -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Set Budgets</h5>
+            <div id="budgetSettings"></div>
+            <button class="btn btn-primary btn-custom w-100" id="saveBudgets">Save Budgets</button>
+        </div>
+
+        <!-- Summary and Filters -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Summary</h5>
+            <div class="d-flex mb-3">
+                <select class="form-select me-2" id="summaryPeriod">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+                <input type="date" class="form-control me-2" id="summaryDate">
+            </div>
+            <div id="summaryDisplay"></div>
         </div>
 
         <!-- Transaction List and Controls -->
@@ -156,6 +208,10 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>Transaction History</h5>
                 <div>
+                    <input type="text" class="form-control d-inline-block w-auto me-2" id="search" placeholder="Search by description">
+                    <select class="form-select d-inline-block w-auto me-2" id="categoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
                     <button class="btn btn-info btn-custom me-2" id="printReport">Print Report</button>
                     <button class="btn btn-success btn-custom me-2" id="saveExcel">Save to Excel</button>
                     <button class="btn btn-warning btn-custom me-2" id="savePDF">Save to PDF</button>
@@ -201,8 +257,22 @@
                         </div>
                         <div class="mb-3">
                             <select class="form-select" id="editCurrency" required data-bs-toggle="tooltip" title="Edit currency">
+                                <option value="NRs">NRs (₨)</option>
                                 <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <textarea class="form-control" id="editNotes" data-bs-toggle="tooltip" title="Edit notes"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="editTags" data-bs-toggle="tooltip" title="Edit tags (comma-separated)">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editStatus" data-bs-toggle="tooltip" title="Edit status">
+                                <option value="cleared">Cleared</option>
+                                <option value="pending">Pending</option>
+                                <option value="canceled">Canceled</option>
                             </select>
                         </div>
                     </form>
@@ -219,7 +289,7 @@
     <script>
         const { jsPDF } = window.jspdf;
         class Transaction {
-            constructor(id, description, amount, type, date, currency, category) {
+            constructor(id, description, amount, type, date, currency, category, notes = '', tags = [], status = 'cleared') {
                 this.id = id;
                 this.description = description;
                 this.amount = parseFloat(amount);
@@ -227,44 +297,66 @@
                 this.date = date;
                 this.currency = currency;
                 this.category = category;
+                this.notes = notes;
+                this.tags = tags;
+                this.status = status;
             }
         }
 
         class ExpenseTracker {
             constructor() {
                 this.transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-                this.currencies = JSON.parse(localStorage.getItem('currencies')) || ['USD', 'EUR'];
+                this.currencies = JSON.parse(localStorage.getItem('currencies')) || ['NRs', 'USD', 'GBP'];
                 this.incomeCategories = JSON.parse(localStorage.getItem('incomeCategories')) || ['Salary', 'Freelance', 'Investment', 'Other'];
                 this.expenseCategories = JSON.parse(localStorage.getItem('expenseCategories')) || ['Food', 'Rent', 'Utilities', 'Entertainment', 'Other'];
                 this.openingBankBalance = parseFloat(localStorage.getItem('openingBankBalance')) || 0;
                 this.openingCashBalance = parseFloat(localStorage.getItem('openingCashBalance')) || 0;
+                this.budgets = JSON.parse(localStorage.getItem('budgets')) || {};
+                this.defaultCurrency = localStorage.getItem('defaultCurrency') || 'NRs';
+                this.currencySymbols = { 'NRs': '₨', 'USD': '$', 'GBP': '£' };
+                this.simulateData();
                 this.updateUI();
                 this.updateCurrencyOptions();
                 this.updateCategoryOptions();
+                this.updateBudgetSettings();
+                this.updateSummary();
             }
 
-            addTransaction(description, amount, type, date, currency, category) {
+            simulateData() {
+                if (this.transactions.length === 0) {
+                    this.transactions = [
+                        new Transaction(Date.now() - 86400000, 'Salary', 50000, 'income', '2025-04-02', 'NRs', 'Salary', 'Monthly salary', ['Work'], 'cleared'),
+                        new Transaction(Date.now() - 43200000, 'Groceries', 1500, 'expense', '2025-04-03', 'NRs', 'Food', 'Weekly shopping', ['Daily'], 'cleared'),
+                        new Transaction(Date.now(), 'Rent', 10000, 'expense', '2025-04-03', 'NRs', 'Rent', 'April rent', ['Monthly'], 'pending')
+                    ];
+                    this.saveTransactions();
+                }
+            }
+
+            addTransaction(description, amount, type, date, currency, category, notes, tags, status) {
                 if (!description || amount <= 0 || !type || !date || !currency || !category) {
                     alert('Please fill all fields correctly');
                     return;
                 }
                 const id = Date.now();
-                const transaction = new Transaction(id, description, amount, type, date, currency, category);
+                const transaction = new Transaction(id, description, amount, type, date, currency, category, notes, tags, status);
                 this.transactions.push(transaction);
                 this.saveTransactions();
                 this.updateUI();
+                this.checkBudgets();
             }
 
-            editTransaction(id, description, amount, type, date, currency, category) {
+            editTransaction(id, description, amount, type, date, currency, category, notes, tags, status) {
                 if (!description || amount <= 0 || !type || !date || !currency || !category) {
                     alert('Please fill all fields correctly');
                     return;
                 }
                 const index = this.transactions.findIndex(t => t.id === id);
                 if (index !== -1) {
-                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency, category);
+                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency, category, notes, tags, status);
                     this.saveTransactions();
                     this.updateUI();
+                    this.checkBudgets();
                 }
             }
 
@@ -274,12 +366,29 @@
                 this.updateUI();
             }
 
+            duplicateTransaction(id) {
+                const transaction = this.transactions.find(t => t.id === id);
+                if (transaction) {
+                    this.addTransaction(
+                        transaction.description, transaction.amount, transaction.type, transaction.date,
+                        transaction.currency, transaction.category, transaction.notes, transaction.tags, transaction.status
+                    );
+                }
+            }
+
             addCurrency(currency) {
                 if (currency && !this.currencies.includes(currency)) {
                     this.currencies.push(currency);
+                    this.currencySymbols[currency] = currency; // Default to code if no symbol
                     localStorage.setItem('currencies', JSON.stringify(this.currencies));
                     this.updateCurrencyOptions();
                 }
+            }
+
+            setDefaultCurrency(currency) {
+                this.defaultCurrency = currency;
+                localStorage.setItem('defaultCurrency', currency);
+                this.updateUI();
             }
 
             addCategory(type, category) {
@@ -301,81 +410,106 @@
                 this.updateUI();
             }
 
+            setBudgets(budgets) {
+                this.budgets = budgets;
+                localStorage.setItem('budgets', JSON.stringify(this.budgets));
+                this.checkBudgets();
+            }
+
             saveTransactions() {
                 localStorage.setItem('transactions', JSON.stringify(this.transactions));
             }
 
             calculateTotals() {
                 const income = this.transactions
-                    .filter(t => t.type === 'income')
+                    .filter(t => t.type === 'income' && t.status !== 'canceled')
                     .reduce((sum, t) => sum + t.amount, 0);
                 const expense = this.transactions
-                    .filter(t => t.type === 'expense')
+                    .filter(t => t.type === 'expense' && t.status !== 'canceled')
                     .reduce((sum, t) => sum + t.amount, 0);
                 const transactionBalance = income - expense;
                 const totalBalance = this.openingBankBalance + this.openingCashBalance + transactionBalance;
                 return { income, expense, transactionBalance, totalBalance };
             }
 
-            updateUI() {
+            updateUI(filtered = this.transactions) {
                 const { income, expense, transactionBalance, totalBalance } = this.calculateTotals();
-                document.getElementById('totalBalance').textContent = `$${totalBalance.toFixed(2)}`;
-                document.getElementById('bankBalance').textContent = `$${this.openingBankBalance.toFixed(2)}`;
-                document.getElementById('cashBalance').textContent = `$${this.openingCashBalance.toFixed(2)}`;
-                document.getElementById('transactionBalance').textContent = `$${transactionBalance.toFixed(2)}`;
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+                document.getElementById('totalBalance').textContent = `${totalBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('bankBalance').textContent = `${this.openingBankBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('cashBalance').textContent = `${this.openingCashBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('transactionBalance').textContent = `${transactionBalance.toFixed(2)} ${symbol}`;
+
+                const search = document.getElementById('search').value.toLowerCase();
+                const categoryFilter = document.getElementById('categoryFilter').value;
+                let displayTransactions = filtered.filter(t => 
+                    t.description.toLowerCase().includes(search) &&
+                    (!categoryFilter || t.category === categoryFilter)
+                );
 
                 const transactionList = document.getElementById('transactionList');
                 transactionList.innerHTML = '';
-                this.transactions.forEach(t => {
+                displayTransactions.forEach(t => {
                     const li = document.createElement('li');
-                    li.className = `list-group-item d-flex justify-content-between align-items-center ${t.type}`;
+                    li.className = `list-group-item d-flex justify-content-between align-items-center ${t.type} ${t.status}`;
                     li.innerHTML = `
                         <div>
                             <strong>${t.description}</strong>
                             <small class="d-block text-muted">${t.date} - ${t.category} (${t.currency})</small>
+                            <small class="d-block text-muted">${t.notes || 'No notes'}</small>
+                            <small class="d-block text-muted">Tags: ${t.tags.join(', ') || 'None'} - Status: ${t.status}</small>
                         </div>
                         <div>
                             <span class="me-3">${t.amount.toFixed(2)} ${t.currency}</span>
                             <button class="btn btn-sm btn-outline-primary me-2 edit-btn" data-id="${t.id}">Edit</button>
+                            <button class="btn btn-sm btn-outline-success me-2 duplicate-btn" data-id="${t.id}">Duplicate</button>
                             <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${t.id}">Delete</button>
                         </div>
                     `;
                     transactionList.appendChild(li);
                 });
+                this.updateSummary();
             }
 
             updateCurrencyOptions() {
                 const currencySelect = document.getElementById('currency');
                 const editCurrencySelect = document.getElementById('editCurrency');
+                const defaultCurrencySelect = document.getElementById('defaultCurrency');
                 currencySelect.innerHTML = '';
                 editCurrencySelect.innerHTML = '';
+                defaultCurrencySelect.innerHTML = '';
                 this.currencies.forEach(c => {
                     const option = document.createElement('option');
                     option.value = c;
-                    option.textContent = `${c}`;
+                    option.textContent = `${c} (${this.currencySymbols[c] || c})`;
                     currencySelect.appendChild(option.cloneNode(true));
-                    editCurrencySelect.appendChild(option);
+                    editCurrencySelect.appendChild(option.cloneNode(true));
+                    defaultCurrencySelect.appendChild(option.cloneNode(true));
                 });
                 const addNewOption = document.createElement('option');
                 addNewOption.value = 'add-new';
                 addNewOption.textContent = 'Add New Currency';
                 currencySelect.appendChild(addNewOption);
+                defaultCurrencySelect.value = this.defaultCurrency;
             }
 
             updateCategoryOptions() {
                 const type = document.getElementById('type').value;
                 const categorySelect = document.getElementById('category');
                 const editCategorySelect = document.getElementById('editCategory');
+                const categoryFilter = document.getElementById('categoryFilter');
                 const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
 
                 categorySelect.innerHTML = '';
                 editCategorySelect.innerHTML = '';
+                categoryFilter.innerHTML = '<option value="">All Categories</option>';
                 categories.forEach(c => {
                     const option = document.createElement('option');
                     option.value = c;
                     option.textContent = c;
                     categorySelect.appendChild(option.cloneNode(true));
-                    editCategorySelect.appendChild(option);
+                    editCategorySelect.appendChild(option.cloneNode(true));
+                    categoryFilter.appendChild(option.cloneNode(true));
                 });
                 const addNewOption = document.createElement('option');
                 addNewOption.value = 'add-new';
@@ -383,10 +517,67 @@
                 categorySelect.appendChild(addNewOption);
             }
 
+            updateBudgetSettings() {
+                const budgetSettings = document.getElementById('budgetSettings');
+                budgetSettings.innerHTML = '';
+                this.expenseCategories.forEach(category => {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label>${category}</label>
+                        <input type="number" class="form-control" id="budget-${category}" value="${this.budgets[category] || ''}" placeholder="Set budget for ${category}" step="0.01">
+                    `;
+                    budgetSettings.appendChild(div);
+                });
+            }
+
+            checkBudgets() {
+                Object.keys(this.budgets).forEach(category => {
+                    const spent = this.transactions
+                        .filter(t => t.category === category && t.type === 'expense' && t.status !== 'canceled')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    if (spent > this.budgets[category]) {
+                        alert(`Budget exceeded for ${category}: ${spent}/${this.budgets[category]} ${this.defaultCurrency}`);
+                    }
+                });
+            }
+
+            updateSummary() {
+                const period = document.getElementById('summaryPeriod').value;
+                const date = document.getElementById('summaryDate').value;
+                if (!date) return;
+
+                let filteredTransactions;
+                const [year, month, day] = date.split('-').map(Number);
+                const startDate = new Date(year, month - 1, day);
+
+                if (period === 'daily') {
+                    filteredTransactions = this.transactions.filter(t => t.date === date);
+                } else if (period === 'weekly') {
+                    const endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + 6);
+                    filteredTransactions = this.transactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= startDate && tDate <= endDate;
+                    });
+                } else if (period === 'monthly') {
+                    filteredTransactions = this.transactions.filter(t => t.date.startsWith(`${year}-${String(month).padStart(2, '0')}`));
+                }
+
+                const income = filteredTransactions.filter(t => t.type === 'income' && t.status !== 'canceled').reduce((sum, t) => sum + t.amount, 0);
+                const expense = filteredTransactions.filter(t => t.type === 'expense' && t.status !== 'canceled').reduce((sum, t) => sum + t.amount, 0);
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+                document.getElementById('summaryDisplay').innerHTML = `
+                    <p>${period.charAt(0).toUpperCase() + period.slice(1)} Income: ${income.toFixed(2)} ${symbol}</p>
+                    <p>${period.charAt(0).toUpperCase() + period.slice(1)} Expense: ${expense.toFixed(2)} ${symbol}</p>
+                    <p>Net: ${(income - expense).toFixed(2)} ${symbol}</p>
+                `;
+            }
+
             exportToCSV() {
-                const csv = ['Date,Description,Amount,Type,Currency,Category'];
+                const csv = ['Date,Description,Amount,Type,Currency,Category,Notes,Tags,Status'];
                 this.transactions.forEach(t => {
-                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency},${t.category}`);
+                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency},${t.category},${t.notes},${t.tags.join(';')},${t.status}`);
                 });
                 const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
@@ -399,11 +590,11 @@
             importFromCSV(file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    const lines = e.target.result.split('\n').slice(1); // Skip header
+                    const lines = e.target.result.split('\n').slice(1);
                     lines.forEach(line => {
-                        const [date, description, amount, type, currency, category] = line.split(',');
+                        const [date, description, amount, type, currency, category, notes, tags, status] = line.split(',');
                         if (description && amount && type && currency && category) {
-                            this.addTransaction(description, parseFloat(amount), type, date, currency, category);
+                            this.addTransaction(description, parseFloat(amount), type, date, currency, category, notes, tags ? tags.split(';') : [], status);
                         }
                     });
                 };
@@ -429,19 +620,44 @@
             }
 
             printReport() {
+                const period = document.getElementById('summaryPeriod').value;
+                const date = document.getElementById('summaryDate').value;
+                let filteredTransactions = this.transactions;
+                if (date) {
+                    if (period === 'daily') {
+                        filteredTransactions = this.transactions.filter(t => t.date === date);
+                    } else if (period === 'weekly') {
+                        const [year, month, day] = date.split('-').map(Number);
+                        const startDate = new Date(year, month - 1, day);
+                        const endDate = new Date(startDate);
+                        endDate.setDate(endDate.getDate() + 6);
+                        filteredTransactions = this.transactions.filter(t => {
+                            const tDate = new Date(t.date);
+                            return tDate >= startDate && tDate <= endDate;
+                        });
+                    } else if (period === 'monthly') {
+                        filteredTransactions = this.transactions.filter(t => t.date.startsWith(date.slice(0, 7)));
+                    }
+                }
+                const income = filteredTransactions.filter(t => t.type === 'income' && t.status !== 'canceled').reduce((sum, t) => sum + t.amount, 0);
+                const expense = filteredTransactions.filter(t => t.type === 'expense' && t.status !== 'canceled').reduce((sum, t) => sum + t.amount, 0);
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write(`
                     <html>
                     <head><title>Expense Tracker Report</title></head>
                     <body>
-                        <h1>Expense Tracker Report</h1>
-                        <p>Total Balance: $${this.calculateTotals().totalBalance.toFixed(2)}</p>
-                        <p>Bank Balance: $${this.openingBankBalance.toFixed(2)}</p>
-                        <p>Cash Balance: $${this.openingCashBalance.toFixed(2)}</p>
-                        <p>Transaction Balance: $${this.calculateTotals().transactionBalance.toFixed(2)}</p>
+                        <h1>Expense Tracker Report (${period.charAt(0).toUpperCase() + period.slice(1)})</h1>
+                        <p>Total Balance: ${this.calculateTotals().totalBalance.toFixed(2)} ${symbol}</p>
+                        <p>Bank Balance: ${this.openingBankBalance.toFixed(2)} ${symbol}</p>
+                        <p>Cash Balance: ${this.openingCashBalance.toFixed(2)} ${symbol}</p>
+                        <p>Transaction Balance: ${this.calculateTotals().transactionBalance.toFixed(2)} ${symbol}</p>
+                        <p>${period.charAt(0).toUpperCase() + period.slice(1)} Income: ${income.toFixed(2)} ${symbol}</p>
+                        <p>${period.charAt(0).toUpperCase() + period.slice(1)} Expense: ${expense.toFixed(2)} ${symbol}</p>
                         <h2>Transactions</h2>
                         <ul>
-                            ${this.transactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category})</li>`).join('')}
+                            ${filteredTransactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category} - ${t.status})</li>`).join('')}
                         </ul>
                     </body>
                     </html>
@@ -459,6 +675,7 @@
 
         // Set Default Date to Today
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('summaryDate').value = new Date().toISOString().split('T')[0];
 
         // Add Transaction
         document.getElementById('transactionForm').addEventListener('submit', (e) => {
@@ -469,6 +686,9 @@
             const date = document.getElementById('date').value;
             let currency = document.getElementById('currency').value;
             let category = document.getElementById('category').value;
+            const notes = document.getElementById('notes').value;
+            const tags = document.getElementById('tags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
+            const status = document.getElementById('status').value;
 
             if (currency === 'add-new') {
                 const newCurrency = document.getElementById('newCurrency').value.trim();
@@ -496,25 +716,31 @@
                 }
             }
 
-            tracker.addTransaction(description, amount, type, date, currency, category);
+            tracker.addTransaction(description, amount, type, date, currency, category, notes, tags, status);
             e.target.reset();
             document.getElementById('date').value = new Date().toISOString().split('T')[0];
         });
 
-        // Currency Selection
+        // Currency and Category Selection
         document.getElementById('currency').addEventListener('change', (e) => {
-            const newCurrencyInput = document.getElementById('newCurrency');
-            newCurrencyInput.classList.toggle('d-none', e.target.value !== 'add-new');
+            document.getElementById('newCurrency').classList.toggle('d-none', e.target.value !== 'add-new');
+        });
+        document.getElementById('type').addEventListener('change', () => tracker.updateCategoryOptions());
+        document.getElementById('category').addEventListener('change', (e) => {
+            document.getElementById('newCategory').classList.toggle('d-none', e.target.value !== 'add-new');
         });
 
-        // Category Selection
-        document.getElementById('type').addEventListener('change', () => {
-            tracker.updateCategoryOptions();
+        // Default Currency
+        document.getElementById('defaultCurrency').addEventListener('change', (e) => {
+            tracker.setDefaultCurrency(e.target.value);
         });
-        document.getElementById('category').addEventListener('change', (e) => {
-            const newCategoryInput = document.getElementById('newCategory');
-            newCategoryInput.classList.toggle('d-none', e.target.value !== 'add-new');
+
+        // Dark Mode
+        document.getElementById('darkModeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
         });
+        if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
 
         // Save Opening Balances
         document.getElementById('saveOpeningBalances').addEventListener('click', () => {
@@ -522,6 +748,24 @@
             const cashBalance = document.getElementById('openingCashBalance').value;
             tracker.setOpeningBalances(bankBalance, cashBalance);
         });
+
+        // Save Budgets
+        document.getElementById('saveBudgets').addEventListener('click', () => {
+            const budgets = {};
+            tracker.expenseCategories.forEach(category => {
+                const value = document.getElementById(`budget-${category}`).value;
+                if (value) budgets[category] = parseFloat(value);
+            });
+            tracker.setBudgets(budgets);
+        });
+
+        // Search and Filter
+        document.getElementById('search').addEventListener('input', () => tracker.updateUI());
+        document.getElementById('categoryFilter').addEventListener('change', () => tracker.updateUI());
+
+        // Summary
+        document.getElementById('summaryPeriod').addEventListener('change', () => tracker.updateSummary());
+        document.getElementById('summaryDate').addEventListener('change', () => tracker.updateSummary());
 
         // Transaction List Events
         document.getElementById('transactionList').addEventListener('click', (e) => {
@@ -537,8 +781,13 @@
                 document.getElementById('editDate').value = transaction.date;
                 document.getElementById('editCurrency').value = transaction.currency;
                 document.getElementById('editCategory').value = transaction.category;
-                tracker.updateCategoryOptions(); // Update categories based on type
+                document.getElementById('editNotes').value = transaction.notes;
+                document.getElementById('editTags').value = transaction.tags.join(', ');
+                document.getElementById('editStatus').value = transaction.status;
+                tracker.updateCategoryOptions();
                 editModal.show();
+            } else if (e.target.classList.contains('duplicate-btn')) {
+                tracker.duplicateTransaction(id);
             }
         });
 
@@ -551,7 +800,10 @@
             const date = document.getElementById('editDate').value;
             const currency = document.getElementById('editCurrency').value;
             const category = document.getElementById('editCategory').value;
-            tracker.editTransaction(id, description, amount, type, date, currency, category);
+            const notes = document.getElementById('editNotes').value;
+            const tags = document.getElementById('editTags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
+            const status = document.getElementById('editStatus').value;
+            tracker.editTransaction(id, description, amount, type, date, currency, category, notes, tags, status);
             editModal.hide();
         });
 
