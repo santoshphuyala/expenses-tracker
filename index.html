@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker - Designed by Santosh Phuyal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .container {
+            max-width: 1000px;
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        .transaction-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .income {
+            border-left: 6px solid #28a745;
+            background: linear-gradient(90deg, rgba(40, 167, 69, 0.1), rgba(255, 255, 255, 0));
+            animation: slideIn 0.5s ease;
+        }
+        .expense {
+            border-left: 6px solid #dc3545;
+            background: linear-gradient(90deg, rgba(220, 53, 69, 0.1), rgba(255, 255, 255, 0));
+            animation: slideIn 0.5s ease;
+        }
+        .btn-custom {
+            border-radius: 30px;
+            padding: 10px 25px;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+        .btn-custom:hover {
+            transform: scale(1.1);
+            background-color: #007bff;
+        }
+        .balance-card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 25px;
+            animation: fadeIn 1s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .tooltip-inner {
+            background-color: #007bff;
+            color: white;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center my-4 fw-bold">Expense Tracker</h1>
+        <p class="text-center text-muted mb-4">Designed by Santosh Phuyal</p>
+
+        <!-- Balance Display -->
+        <div class="balance-card">
+            <div class="row text-center">
+                <div class="col-md-3">
+                    <h6>Total Balance</h6>
+                    <h3 id="totalBalance" class="fw-bold text-primary">$0.00</h3>
+                </div>
+                <div class="col-md-3">
+                    <h6>Bank Balance</h6>
+                    <h4 id="bankBalance" class="text-info">$0.00</h4>
+                </div>
+                <div class="col-md-3">
+                    <h6>Cash Balance</h6>
+                    <h4 id="cashBalance" class="text-warning">$0.00</h4>
+                </div>
+                <div class="col-md-3">
+                    <h6>Transaction Balance</h6>
+                    <h4 id="transactionBalance" class="text-secondary">$0.00</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- Set Opening Balances -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Set Opening Balances</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <input type="number" class="form-control" id="openingBankBalance" placeholder="Opening Bank Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial bank balance">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <input type="number" class="form-control" id="openingCashBalance" placeholder="Opening Cash Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial cash balance">
+                </div>
+            </div>
+            <button class="btn btn-success btn-custom w-100" id="saveOpeningBalances">Save Opening Balances</button>
+        </div>
+
+        <!-- Add Transaction Form -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Add New Transaction</h5>
+            <form id="transactionForm">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <input type="text" class="form-control" id="description" placeholder="Description" required data-bs-toggle="tooltip" title="Enter transaction description">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="amount" placeholder="Amount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Enter amount (positive only)">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="type" required data-bs-toggle="tooltip" title="Select transaction type">
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="date" class="form-control" id="date" required data-bs-toggle="tooltip" title="Select transaction date">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="currency" required data-bs-toggle="tooltip" title="Select or add currency">
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="add-new">Add New Currency</option>
+                        </select>
+                        <input type="text" class="form-control mt-2 d-none" id="newCurrency" placeholder="Enter new currency (e.g., GBP)" data-bs-toggle="tooltip" title="Enter currency code">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-custom w-100">Add Transaction</button>
+            </form>
+        </div>
+
+        <!-- Transaction List and Controls -->
+        <div class="card p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>Transaction History</h5>
+                <div>
+                    <button class="btn btn-info btn-custom me-2" id="printReport">Print Report</button>
+                    <button class="btn btn-success btn-custom me-2" id="saveExcel">Save to Excel</button>
+                    <button class="btn btn-warning btn-custom me-2" id="savePDF">Save to PDF</button>
+                    <button class="btn btn-secondary btn-custom me-2" id="exportCSV">Export CSV</button>
+                    <input type="file" class="d-none" id="importCSVInput" accept=".csv">
+                    <button class="btn btn-primary btn-custom" id="importCSV">Import CSV</button>
+                </div>
+            </div>
+            <ul class="list-group transaction-list" id="transactionList"></ul>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="editDescription" required data-bs-toggle="tooltip" title="Edit transaction description">
+                        </div>
+                        <div class="mb-3">
+                            <input type="number" class="form-control" id="editAmount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Edit amount">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editType" required data-bs-toggle="tooltip" title="Edit transaction type">
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <input type="date" class="form-control" id="editDate" required data-bs-toggle="tooltip" title="Edit transaction date">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editCurrency" required data-bs-toggle="tooltip" title="Edit currency">
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-custom" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary btn-custom" id="saveEdit">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { jsPDF } = window.jspdf;
+        class Transaction {
+            constructor(id, description, amount, type, date, currency) {
+                this.id = id;
+                this.description = description;
+                this.amount = parseFloat(amount);
+                this.type = type;
+                this.date = date;
+                this.currency = currency;
+            }
+        }
+
+        class ExpenseTracker {
+            constructor() {
+                this.transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+                this.currencies = JSON.parse(localStorage.getItem('currencies')) || ['USD', 'EUR'];
+                this.openingBankBalance = parseFloat(localStorage.getItem('openingBankBalance')) || 0;
+                this.openingCashBalance = parseFloat(localStorage.getItem('openingCashBalance')) || 0;
+                this.updateUI();
+                this.updateCurrencyOptions();
+            }
+
+            addTransaction(description, amount, type, date, currency) {
+                if (!description || amount <= 0 || !type || !date || !currency) {
+                    alert('Please fill all fields correctly');
+                    return;
+                }
+                const id = Date.now();
+                const transaction = new Transaction(id, description, amount, type, date, currency);
+                this.transactions.push(transaction);
+                this.saveTransactions();
+                this.updateUI();
+            }
+
+            editTransaction(id, description, amount, type, date, currency) {
+                if (!description || amount <= 0 || !type || !date || !currency) {
+                    alert('Please fill all fields correctly');
+                    return;
+                }
+                const index = this.transactions.findIndex(t => t.id === id);
+                if (index !== -1) {
+                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency);
+                    this.saveTransactions();
+                    this.updateUI();
+                }
+            }
+
+            deleteTransaction(id) {
+                this.transactions = this.transactions.filter(t => t.id !== id);
+                this.saveTransactions();
+                this.updateUI();
+            }
+
+            addCurrency(currency) {
+                if (currency && !this.currencies.includes(currency)) {
+                    this.currencies.push(currency);
+                    localStorage.setItem('currencies', JSON.stringify(this.currencies));
+                    this.updateCurrencyOptions();
+                }
+            }
+
+            setOpeningBalances(bankBalance, cashBalance) {
+                this.openingBankBalance = parseFloat(bankBalance) || 0;
+                this.openingCashBalance = parseFloat(cashBalance) || 0;
+                localStorage.setItem('openingBankBalance', this.openingBankBalance);
+                localStorage.setItem('openingCashBalance', this.openingCashBalance);
+                this.updateUI();
+            }
+
+            saveTransactions() {
+                localStorage.setItem('transactions', JSON.stringify(this.transactions));
+            }
+
+            calculateTotals() {
+                const income = this.transactions
+                    .filter(t => t.type === 'income')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const expense = this.transactions
+                    .filter(t => t.type === 'expense')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const transactionBalance = income - expense;
+                const totalBalance = this.openingBankBalance + this.openingCashBalance + transactionBalance;
+                return { income, expense, transactionBalance, totalBalance };
+            }
+
+            updateUI() {
+                const { income, expense, transactionBalance, totalBalance } = this.calculateTotals();
+                document.getElementById('totalBalance').textContent = `$${totalBalance.toFixed(2)}`;
+                document.getElementById('bankBalance').textContent = `$${this.openingBankBalance.toFixed(2)}`;
+                document.getElementById('cashBalance').textContent = `$${this.openingCashBalance.toFixed(2)}`;
+                document.getElementById('transactionBalance').textContent = `$${transactionBalance.toFixed(2)}`;
+
+                const transactionList = document.getElementById('transactionList');
+                transactionList.innerHTML = '';
+                this.transactions.forEach(t => {
+                    const li = document.createElement('li');
+                    li.className = `list-group-item d-flex justify-content-between align-items-center ${t.type}`;
+                    li.innerHTML = `
+                        <div>
+                            <strong>${t.description}</strong>
+                            <small class="d-block text-muted">${t.date} - ${t.currency}</small>
+                        </div>
+                        <div>
+                            <span class="me-3">${t.amount.toFixed(2)} ${t.currency}</span>
+                            <button class="btn btn-sm btn-outline-primary me-2 edit-btn" data-id="${t.id}">Edit</button>
+                            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${t.id}">Delete</button>
+                        </div>
+                    `;
+                    transactionList.appendChild(li);
+                });
+            }
+
+            updateCurrencyOptions() {
+                const currencySelect = document.getElementById('currency');
+                const editCurrencySelect = document.getElementById('editCurrency');
+                currencySelect.innerHTML = '';
+                editCurrencySelect.innerHTML = '';
+                this.currencies.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c;
+                    option.textContent = `${c}`;
+                    currencySelect.appendChild(option.cloneNode(true));
+                    editCurrencySelect.appendChild(option);
+                });
+                const addNewOption = document.createElement('option');
+                addNewOption.value = 'add-new';
+                addNewOption.textContent = 'Add New Currency';
+                currencySelect.appendChild(addNewOption);
+            }
+
+            exportToCSV() {
+                const csv = ['Date,Description,Amount,Type,Currency'];
+                this.transactions.forEach(t => {
+                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency}`);
+                });
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transactions.csv';
+                a.click();
+            }
+
+            importFromCSV(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const lines = e.target.result.split('\n').slice(1); // Skip header
+                    lines.forEach(line => {
+                        const [date, description, amount, type, currency] = line.split(',');
+                        if (description && amount && type && currency) {
+                            this.addTransaction(description, parseFloat(amount), type, date, currency);
+                        }
+                    });
+                };
+                reader.readAsText(file);
+            }
+
+            saveToExcel() {
+                const ws = XLSX.utils.json_to_sheet(this.transactions);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+                XLSX.writeFile(wb, 'transactions.xlsx');
+            }
+
+            saveToPDF() {
+                const doc = new jsPDF();
+                doc.text('Expense Tracker Report', 10, 10);
+                let y = 20;
+                this.transactions.forEach(t => {
+                    doc.text(`${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type})`, 10, y);
+                    y += 10;
+                });
+                doc.save('transactions.pdf');
+            }
+
+            printReport() {
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                    <head><title>Expense Tracker Report</title></head>
+                    <body>
+                        <h1>Expense Tracker Report</h1>
+                        <p>Total Balance: $${this.calculateTotals().totalBalance.toFixed(2)}</p>
+                        <p>Bank Balance: $${this.openingBankBalance.toFixed(2)}</p>
+                        <p>Cash Balance: $${this.openingCashBalance.toFixed(2)}</p>
+                        <p>Transaction Balance: $${this.calculateTotals().transactionBalance.toFixed(2)}</p>
+                        <h2>Transactions</h2>
+                        <ul>
+                            ${this.transactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type})</li>`).join('')}
+                        </ul>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+            }
+        }
+
+        const tracker = new ExpenseTracker();
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        // Initialize Tooltips
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+
+        // Set Default Date to Today
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+        // Add Transaction
+        document.getElementById('transactionForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const description = document.getElementById('description').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value;
+            const date = document.getElementById('date').value;
+            let currency = document.getElementById('currency').value;
+
+            if (currency === 'add-new') {
+                const newCurrency = document.getElementById('newCurrency').value.trim();
+                if (newCurrency) {
+                    tracker.addCurrency(newCurrency);
+                    currency = newCurrency;
+                    document.getElementById('newCurrency').classList.add('d-none');
+                    document.getElementById('currency').value = newCurrency; // Set the new currency as selected
+                } else {
+                    alert('Please enter a new currency');
+                    return;
+                }
+            }
+            tracker.addTransaction(description, amount, type, date, currency);
+            e.target.reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0]; // Reset date to today
+        });
+
+        // Currency Selection
+        document.getElementById('currency').addEventListener('change', (e) => {
+            const newCurrencyInput = document.getElementById('newCurrency');
+            newCurrencyInput.classList.toggle('d-none', e.target.value !== 'add-new');
+        });
+
+        // Save Opening Balances
+        document.getElementById('saveOpeningBalances').addEventListener('click', () => {
+            const bankBalance = document.getElementById('openingBankBalance').value;
+            const cashBalance = document.getElementById('openingCashBalance').value;
+            tracker.setOpeningBalances(bankBalance, cashBalance);
+        });
+
+        // Transaction List Events
+        document.getElementById('transactionList').addEventListener('click', (e) => {
+            const id = parseInt(e.target.dataset.id);
+            if (e.target.classList.contains('delete-btn')) {
+                tracker.deleteTransaction(id);
+            } else if (e.target.classList.contains('edit-btn')) {
+                const transaction = tracker.transactions.find(t => t.id === id);
+                document.getElementById('editId').value = transaction.id;
+                document.getElementById('editDescription').value = transaction.description;
+                document.getElementById('editAmount').value = transaction.amount;
+                document.getElementById('editType').value = transaction.type;
+                document.getElementById('editDate').value = transaction.date;
+                document.getElementById('editCurrency').value = transaction.currency;
+                editModal.show();
+            }
+        });
+
+        // Save Edit
+        document.getElementById('saveEdit').addEventListener('click', () => {
+            const id = parseInt(document.getElementById('editId').value);
+            const description = document.getElementById('editDescription').value;
+            const amount = parseFloat(document.getElementById('editAmount').value);
+            const type = document.getElementById('editType').value;
+            const date = document.getElementById('editDate').value;
+            const currency = document.getElementById('editCurrency').value;
+            tracker.editTransaction(id, description, amount, type, date, currency);
+            editModal.hide();
+        });
+
+        // Export/Import/Save/Print Buttons
+        document.getElementById('exportCSV').addEventListener('click', () => tracker.exportToCSV());
+        document.getElementById('importCSV').addEventListener('click', () => document.getElementById('importCSVInput').click());
+        document.getElementById('importCSVInput').addEventListener('change', (e) => tracker.importFromCSV(e.target.files[0]));
+        document.getElementById('saveExcel').addEventListener('click', () => tracker.saveToExcel());
+        document.getElementById('savePDF').addEventListener('click', () => tracker.saveToPDF());
+        document.getElementById('printReport').addEventListener('click', () => tracker.printReport());
+    </script>
+</body>
+</html>
