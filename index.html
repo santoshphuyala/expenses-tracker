@@ -1,0 +1,1182 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker - Designed by Santosh Phuyal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .dark-mode {
+            background: linear-gradient(135deg, #2c3e50 0%, #4a5568 100%);
+            color: #fff;
+        }
+        .dark-mode .card, .dark-mode .balance-card { background: #1a202c; }
+        .container { max-width: 1200px; padding: 20px; }
+        .card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        .transaction-list { max-height: 400px; overflow-y: auto; }
+        .income {
+            border-left: 6px solid #28a745;
+            background: linear-gradient(90deg, rgba(40, 167, 69, 0.1), rgba(255, 255, 255, 0));
+            animation: slideIn 0.5s ease;
+        }
+        .expense {
+            border-left: 6px solid #dc3545;
+            background: linear-gradient(90deg, rgba(220, 53, 69, 0.1), rgba(255, 255, 255, 0));
+            animation: slideIn 0.5s ease;
+        }
+        .btn-custom {
+            border-radius: 30px;
+            padding: 10px 25px;
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+        .btn-custom:hover {
+            transform: scale(1.1);
+            background-color: #007bff;
+        }
+        .balance-card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 25px;
+            animation: fadeIn 1s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .tooltip-inner { background-color: #007bff; color: white; border-radius: 10px; }
+        .pending { background: rgba(255, 193, 7, 0.1); }
+        .canceled { background: rgba(108, 117, 125, 0.1); }
+        .dropdown-menu { border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center my-4">
+            <h1 class="fw-bold">Expense Tracker</h1>
+            <div>
+                <select class="form-select d-inline-block w-auto me-2" id="defaultCurrency" data-bs-toggle="tooltip" title="Set default currency">
+                    <option value="NRs">NRs (₨)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="GBP">GBP (£)</option>
+                </select>
+                <div class="dropdown d-inline-block me-2">
+                    <button class="btn btn-outline-primary btn-custom dropdown-toggle" type="button" id="notificationToggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        Notifications
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="notificationToggle">
+                        <li><a class="dropdown-item" href="#" id="enableNotifications">Enable</a></li>
+                        <li><a class="dropdown-item" href="#" id="disableNotifications">Disable</a></li>
+                    </ul>
+                </div>
+                <button class="btn btn-outline-dark btn-custom" id="darkModeToggle">Dark Mode</button>
+            </div>
+        </div>
+        <p class="text-center text-muted mb-4">Designed by Santosh Phuyal</p>
+
+        <!-- Balance Display -->
+        <div class="balance-card">
+            <div class="row text-center">
+                <div class="col-md-3"><h6>Total Balance</h6><h3 id="totalBalance" class="fw-bold text-primary">0.00</h3></div>
+                <div class="col-md-3"><h6>Bank Balance</h6><h4 id="bankBalance" class="text-info">0.00</h4></div>
+                <div class="col-md-3"><h6>Cash Balance</h6><h4 id="cashBalance" class="text-warning">0.00</h4></div>
+                <div class="col-md-3"><h6>Transaction Balance</h6><h4 id="transactionBalance" class="text-secondary">0.00</h4></div>
+            </div>
+        </div>
+
+        <!-- Opening Balances -->
+        <div class="card p-4 mt-4" id="openingBalanceSection">
+            <h5 class="mb-3">Opening Balances</h5>
+            <div id="balanceDisplay" class="mb-3"></div>
+            <div id="balanceForm" class="d-none">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="openingBankBalance" placeholder="Opening Bank Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial bank balance">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="openingCashBalance" placeholder="Opening Cash Balance" step="0.01" data-bs-toggle="tooltip" title="Set initial cash balance">
+                    </div>
+                </div>
+                <button class="btn btn-success btn-custom w-100" id="saveOpeningBalances">Save Opening Balances</button>
+            </div>
+            <div id="balanceActions">
+                <button class="btn btn-outline-primary btn-custom me-2" id="editOpeningBalances">Edit</button>
+                <button class="btn btn-outline-danger btn-custom" id="deleteOpeningBalances">Delete</button>
+            </div>
+        </div>
+
+        <!-- Add Transaction Form -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Add New Transaction</h5>
+            <form id="transactionForm">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="type" required data-bs-toggle="tooltip" title="Select transaction type">
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="category" required data-bs-toggle="tooltip" title="Select or add category">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" class="form-control mt-2 d-none" id="newCategory" placeholder="Enter new category" data-bs-toggle="tooltip" title="Enter new category name">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="text" class="form-control" id="description" placeholder="Description" required data-bs-toggle="tooltip" title="Enter transaction description">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="number" class="form-control" id="amount" placeholder="Amount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Enter amount (positive only)">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="date" class="form-control" id="date" required data-bs-toggle="tooltip" title="Select transaction date">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="currency" required data-bs-toggle="tooltip" title="Select or add currency">
+                            <option value="NRs">NRs (₨)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="add-new">Add New Currency</option>
+                        </select>
+                        <input type="text" class="form-control mt-2 d-none" id="newCurrency" placeholder="Enter new currency (e.g., INR)" data-bs-toggle="tooltip" title="Enter currency code">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <textarea class="form-control" id="notes" placeholder="Optional notes" data-bs-toggle="tooltip" title="Add notes for this transaction"></textarea>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <input type="text" class="form-control" id="tags" placeholder="Tags (comma-separated, optional)" data-bs-toggle="tooltip" title="Add tags (e.g., Urgent, Work)">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <select class="form-select" id="status" data-bs-toggle="tooltip" title="Select transaction status">
+                            <option value="cleared">Cleared</option>
+                            <option value="pending">Pending</option>
+                            <option value="canceled">Canceled</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-custom w-100">Add Transaction</button>
+            </form>
+        </div>
+
+        <!-- Budget Settings -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Set Budgets (Optional)</h5>
+            <div id="budgetSettings"></div>
+            <button class="btn btn-primary btn-custom w-100" id="saveBudgets">Save Budgets</button>
+        </div>
+
+        <!-- Summary -->
+        <div class="card p-4 mt-4">
+            <h5 class="mb-3">Summary</h5>
+            <div class="d-flex mb-3">
+                <select class="form-select me-2" id="summaryPeriod">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="currentWeek">Current Week</option>
+                    <option value="currentMonth">Current Month</option>
+                    <option value="currentYear">Current Year</option>
+                </select>
+                <input type="date" class="form-control me-2" id="summaryDate">
+            </div>
+            <div id="summaryDisplay"></div>
+        </div>
+
+        <!-- Transaction List and Controls -->
+        <div class="card p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>Transaction History</h5>
+                <div>
+                    <input type="text" class="form-control d-inline-block w-auto me-2" id="search" placeholder="Search by description">
+                    <select class="form-select d-inline-block w-auto me-2" id="categoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                    <button class="btn btn-info btn-custom me-2" id="printReport">Print Report</button>
+                    <button class="btn btn-success btn-custom me-2" id="saveExcel">Save to Excel</button>
+                    <button class="btn btn-warning btn-custom me-2" id="savePDF">Save to PDF</button>
+                    <button class="btn btn-secondary btn-custom me-2" id="exportCSV">Export CSV</button>
+                    <button class="btn btn-primary btn-custom me-2" id="backupData">Backup Data</button>
+                    <input type="file" class="d-none" id="restoreDataInput" accept=".json">
+                    <button class="btn btn-primary btn-custom me-2" id="restoreData">Restore Data</button>
+                    <input type="file" class="d-none" id="importCSVInput" accept=".csv,.xlsx">
+                    <button class="btn btn-primary btn-custom" id="importCSV">Import CSV/Excel</button>
+                </div>
+            </div>
+            <ul class="list-group transaction-list" id="transactionList"></ul>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="mb-3">
+                            <select class="form-select" id="editType" required data-bs-toggle="tooltip" title="Edit transaction type">
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editCategory" required data-bs-toggle="tooltip" title="Edit category">
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="editDescription" required data-bs-toggle="tooltip" title="Edit transaction description">
+                        </div>
+                        <div class="mb-3">
+                            <input type="number" class="form-control" id="editAmount" step="0.01" min="0.01" required data-bs-toggle="tooltip" title="Edit amount">
+                        </div>
+                        <div class="mb-3">
+                            <input type="date" class="form-control" id="editDate" required data-bs-toggle="tooltip" title="Edit transaction date">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editCurrency" required data-bs-toggle="tooltip" title="Edit currency">
+                                <option value="NRs">NRs (₨)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="GBP">GBP (£)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <textarea class="form-control" id="editNotes" data-bs-toggle="tooltip" title="Edit notes"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="editTags" placeholder="Tags (comma-separated, optional)" data-bs-toggle="tooltip" title="Edit tags (optional)">
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select" id="editStatus" data-bs-toggle="tooltip" title="Edit status">
+                                <option value="cleared">Cleared</option>
+                                <option value="pending">Pending</option>
+                                <option value="canceled">Canceled</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-custom" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary btn-custom" id="saveEdit">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        class Transaction {
+            constructor(id, description, amount, type, date, currency, category, notes = '', tags = [], status = 'cleared') {
+                this.id = id;
+                this.description = description;
+                this.amount = parseFloat(amount);
+                this.type = type;
+                this.date = date;
+                this.currency = currency;
+                this.category = category;
+                this.notes = notes;
+                this.tags = Array.isArray(tags) ? tags : [];
+                this.status = status;
+            }
+        }
+
+        class ExpenseTracker {
+            constructor() {
+                // Load data from localStorage
+                this.transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+                this.transactions = this.transactions.map(t => ({
+                    ...t,
+                    tags: Array.isArray(t.tags) ? t.tags : [],
+                    category: t.category || (t.type === 'income' ? 'Other' : 'Other')
+                }));
+                this.currencies = JSON.parse(localStorage.getItem('currencies')) || ['NRs', 'USD', 'GBP'];
+                this.incomeCategories = JSON.parse(localStorage.getItem('incomeCategories')) || ['Salary', 'Freelance', 'Investment', 'Other'];
+                this.expenseCategories = JSON.parse(localStorage.getItem('expenseCategories')) || ['Food', 'Rent', 'Utilities', 'Entertainment', 'Other'];
+                this.openingBankBalance = parseFloat(localStorage.getItem('openingBankBalance')) || 0;
+                this.openingCashBalance = parseFloat(localStorage.getItem('openingCashBalance')) || 0;
+                this.budgets = JSON.parse(localStorage.getItem('budgets')) || {};
+                this.defaultCurrency = localStorage.getItem('defaultCurrency') || 'NRs';
+                this.currencySymbols = { 'NRs': '₨', 'USD': '$', 'GBP': '£' };
+                this.notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+                this.notificationInterval = null;
+                this.simulateData();
+                this.updateUI();
+                this.updateCurrencyOptions();
+                this.updateCategoryOptions();
+                this.updateBudgetSettings();
+                this.updateSummary();
+                this.updateOpeningBalanceDisplay();
+                this.setupNotifications();
+            }
+
+            simulateData() {
+                if (this.transactions.length === 0) {
+                    this.transactions = [
+                        new Transaction(Date.now() - 86400000, 'Salary', 50000, 'income', '2025-04-28', 'NRs', 'Salary', 'Monthly salary', ['Work'], 'cleared'),
+                        new Transaction(Date.now() - 43200000, 'Groceries', 1500, 'expense', '2025-04-27', 'NRs', 'Food', 'Weekly shopping', ['Daily'], 'cleared'),
+                        new Transaction(Date.now(), 'Rent', 10000, 'expense', '2025-04-29', 'NRs', 'Rent', 'April rent', ['Monthly'], 'pending')
+                    ];
+                    this.saveTransactions();
+                }
+            }
+
+            setupNotifications() {
+                if (!('Notification' in window)) {
+                    alert('This browser does not support desktop notifications');
+                    return;
+                }
+
+                if (this.notificationsEnabled && Notification.permission !== 'granted') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission !== 'granted') {
+                            alert('Notification permission denied');
+                            this.notificationsEnabled = false;
+                            localStorage.setItem('notificationsEnabled', 'false');
+                        }
+                    });
+                }
+
+                if (this.notificationsEnabled) {
+                    this.startNotifications();
+                }
+            }
+
+            startNotifications() {
+                if (this.notificationInterval) return;
+                this.notificationInterval = setInterval(() => {
+                    const now = new Date();
+                    const hours = now.getHours();
+                    const minutes = now.getMinutes();
+                    if ((hours === 8 || hours === 20) && minutes === 0) {
+                        this.showNotification();
+                    }
+                }, 60000); // Check every minute
+            }
+
+            stopNotifications() {
+                if (this.notificationInterval) {
+                    clearInterval(this.notificationInterval);
+                    this.notificationInterval = null;
+                }
+            }
+
+            showNotification() {
+                if (Notification.permission === 'granted') {
+                    new Notification('Expense Tracker Reminder', {
+                        body: "Don't forget to add today's income or expense!",
+                        icon: '/path/to/icon.png', // Replace with actual icon path if available
+                        tag: 'expense-tracker-reminder'
+                    });
+                }
+            }
+
+            addTransaction(description, amount, type, date, currency, category, notes, tags, status) {
+                if (!description || amount <= 0 || !type || !date || !currency || !category) {
+                    alert('Please fill all fields correctly');
+                    return;
+                }
+                const id = Date.now();
+                const transaction = new Transaction(id, description, amount, type, date, currency, category, notes, tags, status);
+                this.transactions.push(transaction);
+                this.saveTransactions();
+                this.updateUI();
+                this.checkBudgets();
+            }
+
+            editTransaction(id, description, amount, type, date, currency, category, notes, tags, status) {
+                if (!description || amount <= 0 || !type || !date || !currency || !category) {
+                    alert('Please fill all fields correctly');
+                    return;
+                }
+                const index = this.transactions.findIndex(t => t.id === id);
+                if (index !== -1) {
+                    this.transactions[index] = new Transaction(id, description, amount, type, date, currency, category, notes, tags, status);
+                    this.saveTransactions();
+                    this.updateUI();
+                    this.checkBudgets();
+                }
+            }
+
+            deleteTransaction(id) {
+                this.transactions = this.transactions.filter(t => t.id !== id);
+                this.saveTransactions();
+                this.updateUI();
+            }
+
+            duplicateTransaction(id) {
+                const transaction = this.transactions.find(t => t.id === id);
+                if (transaction) {
+                    this.addTransaction(
+                        transaction.description,
+                        transaction.amount,
+                        transaction.type,
+                        transaction.date,
+                        transaction.currency,
+                        transaction.category,
+                        transaction.notes,
+                        transaction.tags,
+                        transaction.status
+                    );
+                }
+            }
+
+            addCurrency(currency) {
+                if (currency && !this.currencies.includes(currency)) {
+                    this.currencies.push(currency);
+                    this.currencySymbols[currency] = currency;
+                    localStorage.setItem('currencies', JSON.stringify(this.currencies));
+                    this.updateCurrencyOptions();
+                }
+            }
+
+            setDefaultCurrency(currency) {
+                this.defaultCurrency = currency;
+                localStorage.setItem('defaultCurrency', currency);
+                this.updateUI();
+            }
+
+            addCategory(type, category) {
+                if (category) {
+                    const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
+                    if (!categories.includes(category)) {
+                        categories.push(category);
+                        localStorage.setItem(type === 'income' ? 'incomeCategories' : 'expenseCategories', JSON.stringify(categories));
+                        this.updateCategoryOptions();
+                    }
+                }
+            }
+
+            setOpeningBalances(bankBalance, cashBalance) {
+                this.openingBankBalance = parseFloat(bankBalance) || 0;
+                this.openingCashBalance = parseFloat(cashBalance) || 0;
+                localStorage.setItem('openingBankBalance', this.openingBankBalance);
+                localStorage.setItem('openingCashBalance', this.openingCashBalance);
+                this.updateUI();
+                this.updateOpeningBalanceDisplay();
+            }
+
+            deleteOpeningBalances() {
+                this.openingBankBalance = 0;
+                this.openingCashBalance = 0;
+                localStorage.removeItem('openingBankBalance');
+                localStorage.removeItem('openingCashBalance');
+                this.updateUI();
+                this.updateOpeningBalanceDisplay();
+            }
+
+            setBudgets(budgets) {
+                this.budgets = budgets;
+                localStorage.setItem('budgets', JSON.stringify(this.budgets));
+                this.checkBudgets();
+            }
+
+            saveTransactions() {
+                localStorage.setItem('transactions', JSON.stringify(this.transactions));
+            }
+
+            calculateTotals() {
+                const income = this.transactions
+                    .filter(t => t.type === 'income' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const expense = this.transactions
+                    .filter(t => t.type === 'expense' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const transactionBalance = income - expense;
+                const totalBalance = this.openingBankBalance + this.openingCashBalance + transactionBalance;
+                return { income, expense, transactionBalance, totalBalance };
+            }
+
+            updateUI(filtered = this.transactions) {
+                const { income, expense, transactionBalance, totalBalance } = this.calculateTotals();
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+                document.getElementById('totalBalance').textContent = `${totalBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('bankBalance').textContent = `${this.openingBankBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('cashBalance').textContent = `${this.openingCashBalance.toFixed(2)} ${symbol}`;
+                document.getElementById('transactionBalance').textContent = `${transactionBalance.toFixed(2)} ${symbol}`;
+
+                const search = document.getElementById('search').value.toLowerCase();
+                const categoryFilter = document.getElementById('categoryFilter').value;
+                let displayTransactions = filtered.filter(t =>
+                    t.description.toLowerCase().includes(search) &&
+                    (!categoryFilter || t.category === categoryFilter)
+                );
+
+                const transactionList = document.getElementById('transactionList');
+                transactionList.innerHTML = '';
+                displayTransactions.forEach(t => {
+                    const li = document.createElement('li');
+                    li.className = `list-group-item d-flex justify-content-between align-items-center ${t.type} ${t.status}`;
+                    li.innerHTML = `
+                        <div>
+                            <strong>${t.description}</strong>
+                            <small class="d-block text-muted">${t.date} - ${t.category} (${t.currency})</small>
+                            <small class="d-block text-muted">${t.notes || 'No notes'}</small>
+                            <small class="d-block text-muted">Tags: ${(Array.isArray(t.tags) && t.tags.length ? t.tags.join(', ') : 'None')} - Status: ${t.status}</small>
+                        </div>
+                        <div>
+                            <span class="me-3">${t.amount.toFixed(2)} ${t.currency}</span>
+                            <button class="btn btn-sm btn-outline-primary me-2 edit-btn" data-id="${t.id}">Edit</button>
+                            <button class="btn btn-sm btn-outline-success me-2 duplicate-btn" data-id="${t.id}">Duplicate</button>
+                            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${t.id}">Delete</button>
+                        </div>
+                    `;
+                    transactionList.appendChild(li);
+                });
+                this.updateSummary();
+            }
+
+            updateCurrencyOptions() {
+                const currencySelect = document.getElementById('currency');
+                const editCurrencySelect = document.getElementById('editCurrency');
+                const defaultCurrencySelect = document.getElementById('defaultCurrency');
+                [currencySelect, editCurrencySelect, defaultCurrencySelect].forEach(select => {
+                    select.innerHTML = '';
+                    this.currencies.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c;
+                        option.textContent = `${c} (${this.currencySymbols[c] || c})`;
+                        select.appendChild(option.cloneNode(true));
+                    });
+                    if (select === currencySelect) {
+                        const addNewOption = document.createElement('option');
+                        addNewOption.value = 'add-new';
+                        addNewOption.textContent = 'Add New Currency';
+                        select.appendChild(addNewOption);
+                    }
+                });
+                defaultCurrencySelect.value = this.defaultCurrency;
+            }
+
+            updateCategoryOptions() {
+                const type = document.getElementById('type').value;
+                const categorySelect = document.getElementById('category');
+                const editCategorySelect = document.getElementById('editCategory');
+                const categoryFilter = document.getElementById('categoryFilter');
+                const categories = type === 'income' ? this.incomeCategories : this.expenseCategories;
+
+                [categorySelect, editCategorySelect].forEach(select => {
+                    select.innerHTML = '';
+                    categories.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c;
+                        option.textContent = c;
+                        select.appendChild(option);
+                    });
+                    if (select === categorySelect) {
+                        const addNewOption = document.createElement('option');
+                        addNewOption.value = 'add-new';
+                        addNewOption.textContent = 'Add New Category';
+                        select.appendChild(addNewOption);
+                    }
+                });
+
+                categoryFilter.innerHTML = '<option value="">All Categories</option>';
+                [...new Set([...this.incomeCategories, ...this.expenseCategories])].forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c;
+                    option.textContent = c;
+                    categoryFilter.appendChild(option);
+                });
+            }
+
+            updateBudgetSettings() {
+                const budgetSettings = document.getElementById('budgetSettings');
+                budgetSettings.innerHTML = '';
+                this.expenseCategories.forEach(category => {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label>${category}</label>
+                        <input type="number" class="form-control" id="budget-${category}" value="${this.budgets[category] || ''}" placeholder="Set budget for ${category}" step="0.01">
+                    `;
+                    budgetSettings.appendChild(div);
+                });
+            }
+
+            checkBudgets() {
+                Object.keys(this.budgets).forEach(category => {
+                    const spent = this.transactions
+                        .filter(t => t.category === category && t.type === 'expense' && t.status !== 'canceled')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    if (spent > this.budgets[category]) {
+                        alert(`Budget exceeded for ${category}: ${spent}/${this.budgets[category]} ${this.defaultCurrency}`);
+                    }
+                });
+            }
+
+            updateOpeningBalanceDisplay() {
+                const display = document.getElementById('balanceDisplay');
+                const form = document.getElementById('balanceForm');
+                const actions = document.getElementById('balanceActions');
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+
+                if (this.openingBankBalance || this.openingCashBalance) {
+                    display.innerHTML = `
+                        <p>Bank: ${this.openingBankBalance.toFixed(2)} ${symbol} | Cash: ${this.openingCashBalance.toFixed(2)} ${symbol}</p>
+                    `;
+                    display.classList.remove('d-none');
+                    form.classList.add('d-none');
+                    actions.classList.remove('d-none');
+                } else {
+                    display.classList.add('d-none');
+                    form.classList.remove('d-none');
+                    actions.classList.add('d-none');
+                }
+            }
+
+            updateSummary() {
+                const period = document.getElementById('summaryPeriod').value;
+                const date = document.getElementById('summaryDate').value;
+                const today = new Date();
+                let filteredTransactions = this.transactions;
+                let summaryTitle = '';
+
+                if (period === 'currentWeek' || period === 'currentMonth' || period === 'currentYear') {
+                    const startDate = new Date(today);
+                    if (period === 'currentWeek') {
+                        startDate.setDate(today.getDate() - today.getDay());
+                        summaryTitle = 'Current Week';
+                    } else if (period === 'currentMonth') {
+                        startDate.setMonth(today.getMonth(), 1);
+                        summaryTitle = 'Current Month';
+                    } else {
+                        startDate.setFullYear(today.getFullYear(), 0, 1);
+                        summaryTitle = 'Current Year';
+                    }
+                    const endDate = new Date(today);
+                    filteredTransactions = this.transactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= startDate && tDate <= endDate;
+                    });
+                } else if (date) {
+                    const [year, month, day] = date.split('-').map(Number);
+                    const startDate = new Date(year, month - 1, day);
+                    if (period === 'daily') {
+                        filteredTransactions = this.transactions.filter(t => t.date === date);
+                        summaryTitle = 'Daily';
+                    } else if (period === 'weekly') {
+                        const endDate = new Date(startDate);
+                        endDate.setDate(endDate.getDate() + 6);
+                        filteredTransactions = this.transactions.filter(t => {
+                            const tDate = new Date(t.date);
+                            return tDate >= startDate && tDate <= endDate;
+                        });
+                        summaryTitle = 'Weekly';
+                    } else if (period === 'monthly') {
+                        filteredTransactions = this.transactions.filter(t => t.date.startsWith(`${year}-${String(month).padStart(2, '0')}`));
+                        summaryTitle = 'Monthly';
+                    }
+                } else {
+                    return;
+                }
+
+                const income = filteredTransactions
+                    .filter(t => t.type === 'income' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const expense = filteredTransactions
+                    .filter(t => t.type === 'expense' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+                document.getElementById('summaryDisplay').innerHTML = `
+                    <h6>${summaryTitle} Summary</h6>
+                    <p>Income: ${income.toFixed(2)} ${symbol}</p>
+                    <p>Expense: ${expense.toFixed(2)} ${symbol}</p>
+                    <p>Net: ${(income - expense).toFixed(2)} ${symbol}</p>
+                `;
+            }
+
+            exportToCSV() {
+                const csv = ['Date,Description,Amount,Type,Currency,Category,Notes,Tags,Status'];
+                this.transactions.forEach(t => {
+                    csv.push(`${t.date},${t.description},${t.amount},${t.type},${t.currency},${t.category},${t.notes || ''},${t.tags.join(';')},${t.status}`);
+                });
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'transactions.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            importFromCSV(file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const lines = e.target.result.split('\n').slice(1);
+                    lines.forEach(line => {
+                        const [date, description, amount, type, currency, category, notes, tags, status] = line.split(',');
+                        if (description && amount && type && currency && category) {
+                            this.addTransaction(
+                                description,
+                                parseFloat(amount),
+                                type,
+                                date,
+                                currency,
+                                category,
+                                notes || '',
+                                tags ? tags.split(';').filter(tag => tag) : [],
+                                status || 'cleared'
+                            );
+                        } else {
+                            console.warn('Invalid CSV line:', line);
+                        }
+                    });
+                    alert('CSV imported successfully');
+                };
+                reader.readAsText(file);
+            }
+
+            importFromExcel(file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+                    json.forEach(row => {
+                        if (row.Description && row.Amount && row.Type && row.Currency && row.Category) {
+                            this.addTransaction(
+                                row.Description,
+                                parseFloat(row.Amount),
+                                row.Type,
+                                row.Date,
+                                row.Currency,
+                                row.Category,
+                                row.Notes || '',
+                                row.Tags ? String(row.Tags).split(';').filter(tag => tag) : [],
+                                row.Status || 'cleared'
+                            );
+                        } else {
+                            console.warn('Invalid Excel row:', row);
+                        }
+                    });
+                    alert('Excel imported successfully');
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            saveToExcel() {
+                const ws = XLSX.utils.json_to_sheet(this.transactions);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+                XLSX.writeFile(wb, 'transactions.xlsx');
+            }
+
+            saveToPDF() {
+                const doc = new jsPDF();
+                doc.text('Expense Tracker Report', 10, 10);
+                let y = 20;
+                this.transactions.forEach(t => {
+                    doc.text(`${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category})`, 10, y);
+                    y += 10;
+                });
+                doc.save('transactions.pdf');
+            }
+
+            printReport() {
+                const period = document.getElementById('summaryPeriod').value;
+                const date = document.getElementById('summaryDate').value;
+                let filteredTransactions = this.transactions;
+                let summaryTitle = '';
+
+                if (period === 'currentWeek' || period === 'currentMonth' || period === 'currentYear') {
+                    const today = new Date();
+                    const startDate = new Date(today);
+                    if (period === 'currentWeek') {
+                        startDate.setDate(today.getDate() - today.getDay());
+                        summaryTitle = 'Current Week';
+                    } else if (period === 'currentMonth') {
+                        startDate.setMonth(today.getMonth(), 1);
+                        summaryTitle = 'Current Month';
+                    } else {
+                        startDate.setFullYear(today.getFullYear(), 0, 1);
+                        summaryTitle = 'Current Year';
+                    }
+                    const endDate = new Date(today);
+                    filteredTransactions = this.transactions.filter(t => {
+                        const tDate = new Date(t.date);
+                        return tDate >= startDate && tDate <= endDate;
+                    });
+                } else if (date) {
+                    const [year, month, day] = date.split('-').map(Number);
+                    const startDate = new Date(year, month - 1, day);
+                    if (period === 'daily') {
+                        filteredTransactions = this.transactions.filter(t => t.date === date);
+                        summaryTitle = 'Daily';
+                    } else if (period === 'weekly') {
+                        const endDate = new Date(startDate);
+                        endDate.setDate(endDate.getDate() + 6);
+                        filteredTransactions = this.transactions.filter(t => {
+                            const tDate = new Date(t.date);
+                            return tDate >= startDate && tDate <= endDate;
+                        });
+                        summaryTitle = 'Weekly';
+                    } else if (period === 'monthly') {
+                        filteredTransactions = this.transactions.filter(t => t.date.startsWith(date.slice(0, 7)));
+                        summaryTitle = 'Monthly';
+                    }
+                }
+
+                const income = filteredTransactions
+                    .filter(t => t.type === 'income' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const expense = filteredTransactions
+                    .filter(t => t.type === 'expense' && t.status !== 'canceled')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                const symbol = this.currencySymbols[this.defaultCurrency] || this.defaultCurrency;
+
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                    <head><title>Expense Tracker Report</title></head>
+                    <body>
+                        <h1>Expense Tracker Report (${summaryTitle})</h1>
+                        <p>Total Balance: ${this.calculateTotals().totalBalance.toFixed(2)} ${symbol}</p>
+                        <p>Bank Balance: ${this.openingBankBalance.toFixed(2)} ${symbol}</p>
+                        <p>Cash Balance: ${this.openingCashBalance.toFixed(2)} ${symbol}</p>
+                        <p>Transaction Balance: ${this.calculateTotals().transactionBalance.toFixed(2)} ${symbol}</p>
+                        <p>${summaryTitle} Income: ${income.toFixed(2)} ${symbol}</p>
+                        <p>${summaryTitle} Expense: ${expense.toFixed(2)} ${symbol}</p>
+                        <h2>Transactions</h2>
+                        <ul>
+                            ${filteredTransactions.map(t => `<li>${t.date} - ${t.description}: ${t.amount} ${t.currency} (${t.type} - ${t.category} - ${t.status})</li>`).join('')}
+                        </ul>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+            }
+
+            backupData() {
+                const backup = {
+                    transactions: this.transactions,
+                    currencies: this.currencies,
+                    incomeCategories: this.incomeCategories,
+                    expenseCategories: this.expenseCategories,
+                    openingBankBalance: this.openingBankBalance,
+                    openingCashBalance: this.openingCashBalance,
+                    budgets: this.budgets,
+                    defaultCurrency: this.defaultCurrency,
+                    currencySymbols: this.currencySymbols,
+                    notificationsEnabled: this.notificationsEnabled
+                };
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'expense_tracker_backup.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            restoreData(file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const backup = JSON.parse(e.target.result);
+                        // Merge transactions, removing duplicates
+                        const existingIds = new Set(this.transactions.map(t => t.id));
+                        this.transactions = [
+                            ...this.transactions,
+                            ...backup.transactions.filter(t => !existingIds.has(t.id)).map(t => ({
+                                ...t,
+                                tags: Array.isArray(t.tags) ? t.tags : [],
+                                category: t.category || (t.type === 'income' ? 'Other' : 'Other')
+                            }))
+                        ];
+                        // Merge currencies
+                        this.currencies = [...new Set([...this.currencies, ...backup.currencies])];
+                        // Merge categories
+                        this.incomeCategories = [...new Set([...this.incomeCategories, ...backup.incomeCategories])];
+                        this.expenseCategories = [...new Set([...this.expenseCategories, ...backup.expenseCategories])];
+                        // Update balances if provided
+                        this.openingBankBalance = backup.openingBankBalance || this.openingBankBalance;
+                        this.openingCashBalance = backup.openingCashBalance || this.openingCashBalance;
+                        // Merge budgets
+                        this.budgets = { ...this.budgets, ...backup.budgets };
+                        // Update default currency if provided
+                        this.defaultCurrency = backup.defaultCurrency || this.defaultCurrency;
+                        // Merge currency symbols
+                        this.currencySymbols = { ...this.currencySymbols, ...backup.currencySymbols };
+                        // Update notifications
+                        this.notificationsEnabled = backup.notificationsEnabled !== undefined ? backup.notificationsEnabled : this.notificationsEnabled;
+                        localStorage.setItem('notificationsEnabled', this.notificationsEnabled);
+                        if (this.notificationsEnabled) {
+                            this.startNotifications();
+                        } else {
+                            this.stopNotifications();
+                        }
+                        // Save to localStorage
+                        this.saveTransactions();
+                        localStorage.setItem('currencies', JSON.stringify(this.currencies));
+                        localStorage.setItem('incomeCategories', JSON.stringify(this.incomeCategories));
+                        localStorage.setItem('expenseCategories', JSON.stringify(this.expenseCategories));
+                        localStorage.setItem('openingBankBalance', this.openingBankBalance);
+                        localStorage.setItem('openingCashBalance', this.openingCashBalance);
+                        localStorage.setItem('budgets', JSON.stringify(this.budgets));
+                        localStorage.setItem('defaultCurrency', this.defaultCurrency);
+                        // Update UI
+                        this.updateUI();
+                        this.updateCurrencyOptions();
+                        this.updateCategoryOptions();
+                        this.updateBudgetSettings();
+                        this.updateOpeningBalanceDisplay();
+                        alert('Data restored successfully');
+                    } catch (error) {
+                        alert('Error restoring data: Invalid JSON file');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        const tracker = new ExpenseTracker();
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('summaryDate').value = new Date().toISOString().split('T')[0];
+
+        document.getElementById('transactionForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const description = document.getElementById('description').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value;
+            const date = document.getElementById('date').value;
+            let currency = document.getElementById('currency').value;
+            let category = document.getElementById('category').value;
+            const notes = document.getElementById('notes').value;
+            const tags = document.getElementById('tags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
+            const status = document.getElementById('status').value;
+
+            if (currency === 'add-new') {
+                const newCurrency = document.getElementById('newCurrency').value.trim();
+                if (newCurrency) {
+                    tracker.addCurrency(newCurrency);
+                    currency = newCurrency;
+                    document.getElementById('newCurrency').classList.add('d-none');
+                    document.getElementById('currency').value = newCurrency;
+                } else {
+                    alert('Please enter a new currency');
+                    return;
+                }
+            }
+
+            if (category === 'add-new') {
+                const newCategory = document.getElementById('newCategory').value.trim();
+                if (newCategory) {
+                    tracker.addCategory(type, newCategory);
+                    category = newCategory;
+                    document.getElementById('newCategory').classList.add('d-none');
+                    document.getElementById('category').value = newCategory;
+                } else {
+                    alert('Please enter a new category');
+                    return;
+                }
+            }
+
+            tracker.addTransaction(description, amount, type, date, currency, category, notes, tags, status);
+            e.target.reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        });
+
+        document.getElementById('currency').addEventListener('change', e => {
+            document.getElementById('newCurrency').classList.toggle('d-none', e.target.value !== 'add-new');
+        });
+
+        document.getElementById('type').addEventListener('change', () => tracker.updateCategoryOptions());
+
+        document.getElementById('category').addEventListener('change', e => {
+            document.getElementById('newCategory').classList.toggle('d-none', e.target.value !== 'add-new');
+        });
+
+        document.getElementById('defaultCurrency').addEventListener('change', e => {
+            tracker.setDefaultCurrency(e.target.value);
+        });
+
+        document.getElementById('darkModeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+
+        if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
+
+        document.getElementById('enableNotifications').addEventListener('click', e => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to enable notifications?')) {
+                tracker.notificationsEnabled = true;
+                localStorage.setItem('notificationsEnabled', 'true');
+                tracker.setupNotifications();
+                alert('Notifications enabled');
+            }
+        });
+
+        document.getElementById('disableNotifications').addEventListener('click', e => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to disable notifications?')) {
+                tracker.notificationsEnabled = false;
+                localStorage.setItem('notificationsEnabled', 'false');
+                tracker.stopNotifications();
+                alert('Notifications disabled');
+            }
+        });
+
+        document.getElementById('saveOpeningBalances').addEventListener('click', () => {
+            const bankBalance = document.getElementById('openingBankBalance').value;
+            const cashBalance = document.getElementById('openingCashBalance').value;
+            tracker.setOpeningBalances(bankBalance, cashBalance);
+        });
+
+        document.getElementById('editOpeningBalances').addEventListener('click', () => {
+            document.getElementById('balanceDisplay').classList.add('d-none');
+            document.getElementById('balanceForm').classList.remove('d-none');
+            document.getElementById('balanceActions').classList.add('d-none');
+            document.getElementById('openingBankBalance').value = tracker.openingBankBalance;
+            document.getElementById('openingCashBalance').value = tracker.openingCashBalance;
+        });
+
+        document.getElementById('deleteOpeningBalances').addEventListener('click', () => {
+            if (confirm('Are you sure you want to delete opening balances?')) {
+                tracker.deleteOpeningBalances();
+            }
+        });
+
+        document.getElementById('saveBudgets').addEventListener('click', () => {
+            const budgets = {};
+            tracker.expenseCategories.forEach(category => {
+                const value = document.getElementById(`budget-${category}`).value;
+                if (value) budgets[category] = parseFloat(value);
+            });
+            tracker.setBudgets(budgets);
+        });
+
+        document.getElementById('search').addEventListener('input', () => tracker.updateUI());
+        document.getElementById('categoryFilter').addEventListener('change', () => tracker.updateUI());
+        document.getElementById('summaryPeriod').addEventListener('change', () => tracker.updateSummary());
+        document.getElementById('summaryDate').addEventListener('change', () => tracker.updateSummary());
+
+        document.getElementById('transactionList').addEventListener('click', e => {
+            const id = parseInt(e.target.dataset.id);
+            if (e.target.classList.contains('delete-btn')) {
+                tracker.deleteTransaction(id);
+            } else if (e.target.classList.contains('edit-btn')) {
+                const transaction = tracker.transactions.find(t => t.id === id);
+                document.getElementById('editId').value = transaction.id;
+                document.getElementById('editDescription').value = transaction.description;
+                document.getElementById('editAmount').value = transaction.amount;
+                document.getElementById('editType').value = transaction.type;
+                document.getElementById('editDate').value = transaction.date;
+                document.getElementById('editCurrency').value = transaction.currency;
+                document.getElementById('editCategory').value = transaction.category;
+                document.getElementById('editNotes').value = transaction.notes;
+                document.getElementById('editTags').value = transaction.tags.join(', ');
+                document.getElementById('editStatus').value = transaction.status;
+                tracker.updateCategoryOptions();
+                editModal.show();
+            } else if (e.target.classList.contains('duplicate-btn')) {
+                tracker.duplicateTransaction(id);
+            }
+        });
+
+        document.getElementById('saveEdit').addEventListener('click', () => {
+            const id = parseInt(document.getElementById('editId').value);
+            const description = document.getElementById('editDescription').value;
+            const amount = parseFloat(document.getElementById('editAmount').value);
+            const type = document.getElementById('editType').value;
+            const date = document.getElementById('editDate').value;
+            const currency = document.getElementById('editCurrency').value;
+            const category = document.getElementById('editCategory').value;
+            const notes = document.getElementById('editNotes').value;
+            const tags = document.getElementById('editTags').value.split(',').map(tag => tag.trim()).filter(tag => tag);
+            const status = document.getElementById('editStatus').value;
+            tracker.editTransaction(id, description, amount, type, date, currency, category, notes, tags, status);
+            editModal.hide();
+        });
+
+        document.getElementById('exportCSV').addEventListener('click', () => tracker.exportToCSV());
+        document.getElementById('importCSV').addEventListener('click', () => document.getElementById('importCSVInput').click());
+        document.getElementById('importCSVInput').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file.name.endsWith('.csv')) {
+                tracker.importFromCSV(file);
+            } else if (file.name.endsWith('.xlsx')) {
+                tracker.importFromExcel(file);
+            } else {
+                alert('Please select a CSV or Excel file');
+            }
+            e.target.value = '';
+        });
+        document.getElementById('saveExcel').addEventListener('click', () => tracker.saveToExcel());
+        document.getElementById('savePDF').addEventListener('click', () => tracker.saveToPDF());
+        document.getElementById('printReport').addEventListener('click', () => tracker.printReport());
+        document.getElementById('backupData').addEventListener('click', () => tracker.backupData());
+        document.getElementById('restoreData').addEventListener('click', () => document.getElementById('restoreDataInput').click());
+        document.getElementById('restoreDataInput').addEventListener('change', e => {
+            tracker.restoreData(e.target.files[0]);
+            e.target.value = '';
+        });
+    </script>
+</body>
+</html>
